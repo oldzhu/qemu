@@ -347,7 +347,7 @@ static void scsi_do_read(SCSIDiskReq *r, int ret)
         scsi_init_iovec(r, SCSI_DMA_BUF_SIZE);
         block_acct_start(blk_get_stats(s->qdev.conf.blk), &r->acct,
                          r->qiov.size, BLOCK_ACCT_READ);
-        r->req.aiocb = sdc->dma_readv(r->sector, &r->qiov,
+        r->req.aiocb = sdc->dma_readv(r->sector << BDRV_SECTOR_BITS, &r->qiov,
                                       scsi_read_complete, r, r);
     }
 
@@ -2740,6 +2740,7 @@ static int32_t scsi_block_dma_command(SCSIRequest *req, uint8_t *buf)
         /* 10-byte CDB.  */
         r->cdb1 = req->cmd.buf[1];
         r->group_number = req->cmd.buf[6];
+        break;
     case 4:
         /* 12-byte CDB.  */
         r->cdb1 = req->cmd.buf[1];
@@ -2842,6 +2843,7 @@ static const TypeInfo scsi_disk_base_info = {
     .class_init    = scsi_disk_base_class_initfn,
     .instance_size = sizeof(SCSIDiskState),
     .class_size    = sizeof(SCSIDiskClass),
+    .abstract      = true,
 };
 
 #define DEFINE_SCSI_DISK_PROPERTIES()                                \

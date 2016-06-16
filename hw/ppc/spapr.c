@@ -762,14 +762,17 @@ static int spapr_populate_drconf_memory(sPAPRMachineState *spapr, void *fdt)
     int ret, i, offset;
     uint64_t lmb_size = SPAPR_MEMORY_BLOCK_SIZE;
     uint32_t prop_lmb_size[] = {0, cpu_to_be32(lmb_size)};
-    uint32_t nr_lmbs = (machine->maxram_size - machine->ram_size)/lmb_size;
+    uint32_t hotplug_lmb_start = spapr->hotplug_memory.base / lmb_size;
+    uint32_t nr_lmbs = (spapr->hotplug_memory.base +
+                       memory_region_size(&spapr->hotplug_memory.mr)) /
+                       lmb_size;
     uint32_t *int_buf, *cur_index, buf_len;
     int nr_nodes = nb_numa_nodes ? nb_numa_nodes : 1;
 
     /*
-     * Don't create the node if there are no DR LMBs.
+     * Don't create the node if there is no hotpluggable memory
      */
-    if (!nr_lmbs) {
+    if (machine->ram_size == machine->maxram_size) {
         return 0;
     }
 
@@ -803,26 +806,40 @@ static int spapr_populate_drconf_memory(sPAPRMachineState *spapr, void *fdt)
     int_buf[0] = cpu_to_be32(nr_lmbs);
     cur_index++;
     for (i = 0; i < nr_lmbs; i++) {
-        sPAPRDRConnector *drc;
-        sPAPRDRConnectorClass *drck;
-        uint64_t addr = i * lmb_size + spapr->hotplug_memory.base;;
+        uint64_t addr = i * lmb_size;
         uint32_t *dynamic_memory = cur_index;
 
-        drc = spapr_dr_connector_by_id(SPAPR_DR_CONNECTOR_TYPE_LMB,
-                                       addr/lmb_size);
-        g_assert(drc);
-        drck = SPAPR_DR_CONNECTOR_GET_CLASS(drc);
+        if (i >= hotplug_lmb_start) {
+            sPAPRDRConnector *drc;
+            sPAPRDRConnectorClass *drck;
 
-        dynamic_memory[0] = cpu_to_be32(addr >> 32);
-        dynamic_memory[1] = cpu_to_be32(addr & 0xffffffff);
-        dynamic_memory[2] = cpu_to_be32(drck->get_index(drc));
-        dynamic_memory[3] = cpu_to_be32(0); /* reserved */
-        dynamic_memory[4] = cpu_to_be32(numa_get_node(addr, NULL));
-        if (addr < machine->ram_size ||
-                    memory_region_present(get_system_memory(), addr)) {
-            dynamic_memory[5] = cpu_to_be32(SPAPR_LMB_FLAGS_ASSIGNED);
+            drc = spapr_dr_connector_by_id(SPAPR_DR_CONNECTOR_TYPE_LMB, i);
+            g_assert(drc);
+            drck = SPAPR_DR_CONNECTOR_GET_CLASS(drc);
+
+            dynamic_memory[0] = cpu_to_be32(addr >> 32);
+            dynamic_memory[1] = cpu_to_be32(addr & 0xffffffff);
+            dynamic_memory[2] = cpu_to_be32(drck->get_index(drc));
+            dynamic_memory[3] = cpu_to_be32(0); /* reserved */
+            dynamic_memory[4] = cpu_to_be32(numa_get_node(addr, NULL));
+            if (memory_region_present(get_system_memory(), addr)) {
+                dynamic_memory[5] = cpu_to_be32(SPAPR_LMB_FLAGS_ASSIGNED);
+            } else {
+                dynamic_memory[5] = cpu_to_be32(0);
+            }
         } else {
-            dynamic_memory[5] = cpu_to_be32(0);
+            /*
+             * LMB information for RMA, boot time RAM and gap b/n RAM and
+             * hotplug memory region -- all these are marked as reserved
+             * and as having no valid DRC.
+             */
+            dynamic_memory[0] = cpu_to_be32(addr >> 32);
+            dynamic_memory[1] = cpu_to_be32(addr & 0xffffffff);
+            dynamic_memory[2] = cpu_to_be32(0);
+            dynamic_memory[3] = cpu_to_be32(0); /* reserved */
+            dynamic_memory[4] = cpu_to_be32(-1);
+            dynamic_memory[5] = cpu_to_be32(SPAPR_LMB_FLAGS_RESERVED |
+                                            SPAPR_LMB_FLAGS_DRC_INVALID);
         }
 
         cur_index += SPAPR_DR_LMB_LIST_ENTRY_SIZE;
@@ -1816,11 +1833,21 @@ static void ppc_spapr_init(MachineState *machine)
     /* initialize hotplug memory address space */
     if (machine->ram_size < machine->maxram_size) {
         ram_addr_t hotplug_mem_size = machine->maxram_size - machine->ram_size;
+        /*
+         * Limit the number of hotpluggable memory slots to half the number
+         * slots that KVM supports, leaving the other half for PCI and other
+         * devices. However ensure that number of slots doesn't drop below 32.
+         */
+        int max_memslots = kvm_enabled() ? kvm_get_max_memslots() / 2 :
+                           SPAPR_MAX_RAM_SLOTS;
 
-        if (machine->ram_slots > SPAPR_MAX_RAM_SLOTS) {
+        if (max_memslots < SPAPR_MAX_RAM_SLOTS) {
+            max_memslots = SPAPR_MAX_RAM_SLOTS;
+        }
+        if (machine->ram_slots > max_memslots) {
             error_report("Specified number of memory slots %"
                          PRIu64" exceeds max supported %d",
-                         machine->ram_slots, SPAPR_MAX_RAM_SLOTS);
+                         machine->ram_slots, max_memslots);
             exit(1);
         }
 
@@ -2344,18 +2371,36 @@ static const TypeInfo spapr_machine_info = {
     type_init(spapr_machine_register_##suffix)
 
 /*
+ * pseries-2.7
+ */
+static void spapr_machine_2_7_instance_options(MachineState *machine)
+{
+}
+
+static void spapr_machine_2_7_class_options(MachineClass *mc)
+{
+    /* Defaults for the latest behaviour inherited from the base class */
+}
+
+DEFINE_SPAPR_MACHINE(2_7, "2.7", true);
+
+/*
  * pseries-2.6
  */
+#define SPAPR_COMPAT_2_6 \
+    HW_COMPAT_2_6
+
 static void spapr_machine_2_6_instance_options(MachineState *machine)
 {
 }
 
 static void spapr_machine_2_6_class_options(MachineClass *mc)
 {
-    /* Defaults for the latest behaviour inherited from the base class */
+    spapr_machine_2_7_class_options(mc);
+    SET_MACHINE_COMPAT(mc, SPAPR_COMPAT_2_6);
 }
 
-DEFINE_SPAPR_MACHINE(2_6, "2.6", true);
+DEFINE_SPAPR_MACHINE(2_6, "2.6", false);
 
 /*
  * pseries-2.5

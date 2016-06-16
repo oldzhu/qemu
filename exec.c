@@ -1935,7 +1935,7 @@ RAMBlock *qemu_ram_block_from_host(void *ptr, bool round_offset,
         ram_addr = xen_ram_addr_from_mapcache(ptr);
         block = qemu_get_ram_block(ram_addr);
         if (block) {
-            *offset = (host - block->host);
+            *offset = ram_addr - block->offset;
         }
         rcu_read_unlock();
         return block;
@@ -2091,7 +2091,7 @@ static void check_watchpoint(int offset, int len, MemTxAttrs attrs, int flags)
                 } else {
                     cpu_get_tb_cpu_state(env, &pc, &cs_base, &cpu_flags);
                     tb_gen_code(cpu, pc, cs_base, cpu_flags, 1);
-                    cpu_resume_from_signal(cpu, NULL);
+                    cpu_loop_exit_noexc(cpu);
                 }
             }
         } else {

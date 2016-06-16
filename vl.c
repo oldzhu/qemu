@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include "qemu/osdep.h"
+#include "qemu-version.h"
 #include "qemu/cutils.h"
 #include "qemu/help_option.h"
 
@@ -51,7 +52,6 @@ int main(int argc, char **argv)
 #define main qemu_main
 #endif /* CONFIG_COCOA */
 
-#include <glib.h>
 
 #include "qemu/error-report.h"
 #include "qemu/sockets.h"
@@ -1072,11 +1072,6 @@ bool defaults_enabled(void)
     return has_defaults;
 }
 
-bool usb_enabled(void)
-{
-    return machine_usb(current_machine);
-}
-
 #ifndef _WIN32
 static int parse_add_fd(void *opaque, QemuOpts *opts, Error **errp)
 {
@@ -1393,7 +1388,7 @@ static int usb_device_add(const char *devname)
     const char *p;
 #endif
 
-    if (!usb_enabled()) {
+    if (!machine_usb(current_machine)) {
         return -1;
     }
 
@@ -1425,7 +1420,7 @@ static int usb_device_del(const char *devname)
         return -1;
     }
 
-    if (!usb_enabled()) {
+    if (!machine_usb(current_machine)) {
         return -1;
     }
 
@@ -4501,7 +4496,7 @@ int main(int argc, char **argv, char **envp)
     }
 
     /* init USB devices */
-    if (usb_enabled()) {
+    if (machine_usb(current_machine)) {
         if (foreach_device_config(DEV_USB, usb_parse) < 0)
             exit(1);
     }

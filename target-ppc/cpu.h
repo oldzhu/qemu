@@ -28,8 +28,6 @@
 #define TARGET_LONG_BITS 64
 #define TARGET_PAGE_BITS 12
 
-#define TARGET_IS_BIENDIAN 1
-
 /* Note that the official physical address space bits is 62-M where M
    is implementation dependent.  I've not looked up M for the set of
    cpus we emulate at the system level.  */
@@ -959,7 +957,6 @@ struct CPUPPCState {
     ppc_slb_t slb[MAX_SLB_ENTRIES];
     int32_t slb_nr;
     /* tcg TLB needs flush (deferred slb inval instruction typically) */
-    uint32_t tlb_need_flush;
 #endif
     /* segment registers */
     hwaddr htab_base;
@@ -985,6 +982,7 @@ struct CPUPPCState {
     target_ulong pb[4];
     bool tlb_dirty;   /* Set to non-zero when modifying TLB                  */
     bool kvm_sw_tlb;  /* non-zero if KVM SW TLB API is active                */
+    uint32_t tlb_need_flush; /* Delayed flush needed */
 #endif
 
     /* Other registers */
@@ -1050,6 +1048,10 @@ struct CPUPPCState {
     hwaddr mpic_iack;
     /* true when the external proxy facility mode is enabled */
     bool mpic_proxy;
+    /* set when the processor has an HV mode, thus HV priv
+     * instructions and SPRs are diallowed if MSR:HV is 0
+     */
+    bool has_hv_mode;
 #endif
 
     /* Those resources are used only during code translation */
@@ -1185,7 +1187,9 @@ void ppc_store_msr (CPUPPCState *env, target_ulong value);
 
 void ppc_cpu_list (FILE *f, fprintf_function cpu_fprintf);
 int ppc_get_compat_smt_threads(PowerPCCPU *cpu);
+#if defined(TARGET_PPC64)
 void ppc_set_compat(PowerPCCPU *cpu, uint32_t cpu_version, Error **errp);
+#endif
 
 /* Time-base and decrementer management */
 #ifndef NO_CPU_IO_DEFS
@@ -2198,6 +2202,7 @@ enum {
 enum {
     PCR_COMPAT_2_05     = 1ull << (63-62),
     PCR_COMPAT_2_06     = 1ull << (63-61),
+    PCR_COMPAT_2_07     = 1ull << (63-60),
     PCR_VEC_DIS         = 1ull << (63-0), /* Vec. disable (bit NA since POWER8) */
     PCR_VSX_DIS         = 1ull << (63-1), /* VSX disable (bit NA since POWER8) */
     PCR_TM_DIS          = 1ull << (63-2), /* Trans. memory disable (POWER8) */
