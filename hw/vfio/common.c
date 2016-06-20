@@ -20,7 +20,6 @@
 
 #include "qemu/osdep.h"
 #include <sys/ioctl.h>
-#include <sys/mman.h>
 #include <linux/vfio.h>
 
 #include "hw/vfio/vfio-common.h"
@@ -1258,7 +1257,7 @@ static int vfio_eeh_container_op(VFIOContainer *container, uint32_t op)
         return -errno;
     }
 
-    return 0;
+    return ret;
 }
 
 static VFIOContainer *vfio_eeh_as_container(AddressSpace *as)
