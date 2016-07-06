@@ -59,10 +59,8 @@ static int parse_str(StringInputVisitor *siv, const char *name, Error **errp)
         if (errno == 0 && endptr > str) {
             if (*endptr == '\0') {
                 cur = g_malloc0(sizeof(*cur));
-                cur->begin = start;
-                cur->end = start + 1;
-                siv->ranges = g_list_insert_sorted_merged(siv->ranges, cur,
-                                                          range_compare);
+                range_set_bounds(cur, start, start);
+                siv->ranges = range_list_insert(siv->ranges, cur);
                 cur = NULL;
                 str = NULL;
             } else if (*endptr == '-') {
@@ -74,23 +72,15 @@ static int parse_str(StringInputVisitor *siv, const char *name, Error **errp)
                      end < start + 65536)) {
                     if (*endptr == '\0') {
                         cur = g_malloc0(sizeof(*cur));
-                        cur->begin = start;
-                        cur->end = end + 1;
-                        siv->ranges =
-                            g_list_insert_sorted_merged(siv->ranges,
-                                                        cur,
-                                                        range_compare);
+                        range_set_bounds(cur, start, end);
+                        siv->ranges = range_list_insert(siv->ranges, cur);
                         cur = NULL;
                         str = NULL;
                     } else if (*endptr == ',') {
                         str = endptr + 1;
                         cur = g_malloc0(sizeof(*cur));
-                        cur->begin = start;
-                        cur->end = end + 1;
-                        siv->ranges =
-                            g_list_insert_sorted_merged(siv->ranges,
-                                                        cur,
-                                                        range_compare);
+                        range_set_bounds(cur, start, end);
+                        siv->ranges = range_list_insert(siv->ranges, cur);
                         cur = NULL;
                     } else {
                         goto error;
@@ -101,11 +91,8 @@ static int parse_str(StringInputVisitor *siv, const char *name, Error **errp)
             } else if (*endptr == ',') {
                 str = endptr + 1;
                 cur = g_malloc0(sizeof(*cur));
-                cur->begin = start;
-                cur->end = start + 1;
-                siv->ranges = g_list_insert_sorted_merged(siv->ranges,
-                                                          cur,
-                                                          range_compare);
+                range_set_bounds(cur, start, start);
+                siv->ranges = range_list_insert(siv->ranges, cur);
                 cur = NULL;
             } else {
                 goto error;
@@ -143,7 +130,7 @@ start_list(Visitor *v, const char *name, GenericList **list, size_t size,
     if (siv->cur_range) {
         Range *r = siv->cur_range->data;
         if (r) {
-            siv->cur = r->begin;
+            siv->cur = range_lob(r);
         }
         *list = g_malloc0(size);
     } else {
@@ -165,7 +152,7 @@ static GenericList *next_list(Visitor *v, GenericList *tail, size_t size)
         return NULL;
     }
 
-    if (siv->cur < r->begin || siv->cur >= r->end) {
+    if (!range_contains(r, siv->cur)) {
         siv->cur_range = g_list_next(siv->cur_range);
         if (!siv->cur_range) {
             return NULL;
@@ -174,7 +161,7 @@ static GenericList *next_list(Visitor *v, GenericList *tail, size_t size)
         if (!r) {
             return NULL;
         }
-        siv->cur = r->begin;
+        siv->cur = range_lob(r);
     }
 
     tail->next = g_malloc0(size);
@@ -217,7 +204,7 @@ static void parse_type_int64(Visitor *v, const char *name, int64_t *obj,
             goto error;
         }
 
-        siv->cur = r->begin;
+        siv->cur = range_lob(r);
     }
 
     *obj = siv->cur;
