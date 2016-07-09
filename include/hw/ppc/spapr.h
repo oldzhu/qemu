@@ -16,6 +16,8 @@ typedef struct sPAPREventLogEntry sPAPREventLogEntry;
 #define HPTE64_V_HPTE_DIRTY     0x0000000000000040ULL
 #define SPAPR_ENTRY_POINT       0x100
 
+#define SPAPR_TIMEBASE_FREQ     512000000ULL
+
 typedef struct sPAPRMachineClass sPAPRMachineClass;
 typedef struct sPAPRMachineState sPAPRMachineState;
 
@@ -36,6 +38,7 @@ struct sPAPRMachineClass {
 
     /*< public >*/
     bool dr_lmb_enabled;       /* enable dynamic-reconfig/hotplug of LMBs */
+    bool dr_cpu_enabled;       /* enable dynamic-reconfig/hotplug of CPUs */
     bool use_ohci_by_default;  /* use USB-OHCI instead of XHCI */
 };
 
@@ -49,7 +52,7 @@ struct sPAPRMachineState {
     struct VIOsPAPRBus *vio_bus;
     QLIST_HEAD(, sPAPRPHBState) phbs;
     struct sPAPRNVRAM *nvram;
-    XICSState *icp;
+    XICSState *xics;
     DeviceState *rtc;
 
     void *htab;
@@ -79,6 +82,7 @@ struct sPAPRMachineState {
     /*< public >*/
     char *kvm_type;
     MemoryHotplugState hotplug_memory;
+    Object **cores;
 };
 
 #define H_SUCCESS         0
@@ -412,6 +416,16 @@ int spapr_allocate_irq_block(int num, bool lsi, bool msi);
 #define RTAS_OUT_NOT_AUTHORIZED                 -9002
 #define RTAS_OUT_SYSPARM_PARAM_ERROR            -9999
 
+/* DDW pagesize mask values from ibm,query-pe-dma-window */
+#define RTAS_DDW_PGSIZE_4K       0x01
+#define RTAS_DDW_PGSIZE_64K      0x02
+#define RTAS_DDW_PGSIZE_16M      0x04
+#define RTAS_DDW_PGSIZE_32M      0x08
+#define RTAS_DDW_PGSIZE_64M      0x10
+#define RTAS_DDW_PGSIZE_128M     0x20
+#define RTAS_DDW_PGSIZE_256M     0x40
+#define RTAS_DDW_PGSIZE_16G      0x80
+
 /* RTAS tokens */
 #define RTAS_TOKEN_BASE      0x2000
 
@@ -453,8 +467,12 @@ int spapr_allocate_irq_block(int num, bool lsi, bool msi);
 #define RTAS_IBM_SET_SLOT_RESET                 (RTAS_TOKEN_BASE + 0x23)
 #define RTAS_IBM_CONFIGURE_PE                   (RTAS_TOKEN_BASE + 0x24)
 #define RTAS_IBM_SLOT_ERROR_DETAIL              (RTAS_TOKEN_BASE + 0x25)
+#define RTAS_IBM_QUERY_PE_DMA_WINDOW            (RTAS_TOKEN_BASE + 0x26)
+#define RTAS_IBM_CREATE_PE_DMA_WINDOW           (RTAS_TOKEN_BASE + 0x27)
+#define RTAS_IBM_REMOVE_PE_DMA_WINDOW           (RTAS_TOKEN_BASE + 0x28)
+#define RTAS_IBM_RESET_PE_DMA_WINDOW            (RTAS_TOKEN_BASE + 0x29)
 
-#define RTAS_TOKEN_MAX                          (RTAS_TOKEN_BASE + 0x26)
+#define RTAS_TOKEN_MAX                          (RTAS_TOKEN_BASE + 0x2A)
 
 /* RTAS ibm,get-system-parameter token values */
 #define RTAS_SYSPARM_SPLPAR_CHARACTERISTICS      20
@@ -582,6 +600,9 @@ void spapr_hotplug_req_add_by_count(sPAPRDRConnectorType drc_type,
                                        uint32_t count);
 void spapr_hotplug_req_remove_by_count(sPAPRDRConnectorType drc_type,
                                           uint32_t count);
+void spapr_cpu_init(sPAPRMachineState *spapr, PowerPCCPU *cpu, Error **errp);
+void *spapr_populate_hotplug_cpu_dt(CPUState *cs, int *fdt_offset,
+                                    sPAPRMachineState *spapr);
 
 /* rtas-configure-connector state */
 struct sPAPRConfigureConnectorState {

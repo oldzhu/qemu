@@ -153,6 +153,13 @@ struct MemoryRegionIOMMUOps {
     IOMMUTLBEntry (*translate)(MemoryRegion *iommu, hwaddr addr, bool is_write);
     /* Returns minimum supported page size */
     uint64_t (*get_min_page_size)(MemoryRegion *iommu);
+<<<<<<< HEAD
+=======
+    /* Called when the first notifier is set */
+    void (*notify_started)(MemoryRegion *iommu);
+    /* Called when the last notifier is removed */
+    void (*notify_stopped)(MemoryRegion *iommu);
+>>>>>>> upstream/master
 };
 
 typedef struct CoalescedMemoryRange CoalescedMemoryRange;
@@ -441,15 +448,31 @@ void memory_region_init_alias(MemoryRegion *mr,
                               uint64_t size);
 
 /**
- * memory_region_init_rom_device:  Initialize a ROM memory region.  Writes are
- *                                 handled via callbacks.
+ * memory_region_init_rom: Initialize a ROM memory region.
  *
- * If NULL callbacks pointer is given, then I/O space is not supposed to be
- * handled by QEMU itself. Any access via the memory API will cause an abort().
+ * This has the same effect as calling memory_region_init_ram()
+ * and then marking the resulting region read-only with
+ * memory_region_set_readonly().
  *
  * @mr: the #MemoryRegion to be initialized.
  * @owner: the object that tracks the region's reference count
- * @ops: callbacks for write access handling.
+ * @name: the name of the region.
+ * @size: size of the region.
+ * @errp: pointer to Error*, to store an error if it happens.
+ */
+void memory_region_init_rom(MemoryRegion *mr,
+                            struct Object *owner,
+                            const char *name,
+                            uint64_t size,
+                            Error **errp);
+
+/**
+ * memory_region_init_rom_device:  Initialize a ROM memory region.  Writes are
+ *                                 handled via callbacks.
+ *
+ * @mr: the #MemoryRegion to be initialized.
+ * @owner: the object that tracks the region's reference count
+ * @ops: callbacks for write access handling (must not be NULL).
  * @name: the name of the region.
  * @size: size of the region.
  * @errp: pointer to Error*, to store an error if it happens.
@@ -622,9 +645,11 @@ void memory_region_iommu_replay(MemoryRegion *mr, Notifier *n, bool is_write);
  * memory_region_unregister_iommu_notifier: unregister a notifier for
  * changes to IOMMU translation entries.
  *
+ * @mr: the memory region which was observed and for which notity_stopped()
+ *      needs to be called
  * @n: the notifier to be removed.
  */
-void memory_region_unregister_iommu_notifier(Notifier *n);
+void memory_region_unregister_iommu_notifier(MemoryRegion *mr, Notifier *n);
 
 /**
  * memory_region_name: get a memory region's name

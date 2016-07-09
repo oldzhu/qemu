@@ -11,6 +11,7 @@
  *
  */
 #include "qemu/osdep.h"
+<<<<<<< HEAD
 
 #include "qapi/qmp/qstring.h"
 #include "qapi/qmp/qint.h"
@@ -19,7 +20,11 @@
 #include "qapi/qmp/qfloat.h"
 #include "qapi/qmp/qbool.h"
 #include "qapi/qmp/qjson.h"
+=======
+>>>>>>> upstream/master
 
+#include "qapi/qmp/types.h"
+#include "qapi/qmp/qjson.h"
 #include "qemu-common.h"
 
 static void escaped_string(void)

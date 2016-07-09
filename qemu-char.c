@@ -32,8 +32,7 @@
 #include "sysemu/char.h"
 #include "hw/usb.h"
 #include "qmp-commands.h"
-#include "qapi/qmp-input-visitor.h"
-#include "qapi/qmp-output-visitor.h"
+#include "qapi/clone-visitor.h"
 #include "qapi-visit.h"
 #include "qemu/base64.h"
 #include "io/channel-socket.h"
@@ -47,7 +46,6 @@
 #include <sys/times.h>
 #include <sys/wait.h>
 #include <termios.h>
-#include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
@@ -3967,19 +3965,19 @@ void qemu_chr_fe_event(struct CharDriverState *chr, int event)
     }
 }
 
-int qemu_chr_fe_add_watch(CharDriverState *s, GIOCondition cond,
-                          GIOFunc func, void *user_data)
+guint qemu_chr_fe_add_watch(CharDriverState *s, GIOCondition cond,
+                            GIOFunc func, void *user_data)
 {
     GSource *src;
     guint tag;
 
     if (s->chr_add_watch == NULL) {
-        return -ENOSYS;
+        return 0;
     }
 
     src = s->chr_add_watch(s, cond);
     if (!src) {
-        return -EINVAL;
+        return 0;
     }
 
     g_source_set_callback(src, (GSourceFunc)func, user_data, NULL);
@@ -4010,6 +4008,13 @@ void qemu_chr_fe_claim_no_fail(CharDriverState *s)
 void qemu_chr_fe_release(CharDriverState *s)
 {
     s->avail_connections++;
+}
+
+void qemu_chr_disconnect(CharDriverState *chr)
+{
+    if (chr->chr_disconnect) {
+        chr->chr_disconnect(chr);
+    }
 }
 
 static void qemu_chr_free_common(CharDriverState *chr)
@@ -4383,12 +4388,13 @@ static CharDriverState *qmp_chardev_open_socket(const char *id,
         }
     }
 
-    qapi_copy_SocketAddress(&s->addr, sock->addr);
+    s->addr = QAPI_CLONE(SocketAddress, sock->addr);
 
     chr->opaque = s;
     chr->chr_write = tcp_chr_write;
     chr->chr_sync_read = tcp_chr_sync_read;
     chr->chr_close = tcp_chr_close;
+    chr->chr_disconnect = tcp_chr_disconnect;
     chr->get_msgfds = tcp_get_msgfds;
     chr->set_msgfds = tcp_set_msgfds;
     chr->chr_add_client = tcp_chr_add_client;
@@ -4542,6 +4548,15 @@ void qmp_chardev_remove(const char *id, Error **errp)
     qemu_chr_delete(chr);
 }
 
+static void qemu_chr_cleanup(void)
+{
+    CharDriverState *chr, *tmp;
+
+    QTAILQ_FOREACH_SAFE(chr, &chardevs, next, tmp) {
+        qemu_chr_delete(chr);
+    }
+}
+
 static void register_types(void)
 {
     register_char_driver("null", CHARDEV_BACKEND_KIND_NULL, NULL,
@@ -4588,6 +4603,8 @@ static void register_types(void)
      * is specified
      */
     qemu_add_machine_init_done_notifier(&muxes_realize_notify);
+
+    atexit(qemu_chr_cleanup);
 }
 
 type_init(register_types);

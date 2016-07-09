@@ -32,6 +32,7 @@
 #include "qemu/config-file.h"
 #include "qemu/option.h"
 #include "qemu/error-report.h"
+#include "qemu/log.h"
 #include "qom/object_interfaces.h"
 #include "sysemu/sysemu.h"
 #include "sysemu/block-backend.h"
@@ -39,6 +40,7 @@
 #include "block/blockjob.h"
 #include "block/qapi.h"
 #include "crypto/init.h"
+#include "trace/control.h"
 #include <getopt.h>
 
 #define QEMU_IMG_VERSION "qemu-img version " QEMU_VERSION QEMU_PKGVERSION \
@@ -91,8 +93,13 @@ static void QEMU_NORETURN help(void)
 {
     const char *help_msg =
            QEMU_IMG_VERSION
-           "usage: qemu-img command [command options]\n"
+           "usage: qemu-img [standard options] command [command options]\n"
            "QEMU disk image utility\n"
+           "\n"
+           "    '-h', '--help'       display this help and exit\n"
+           "    '-V', '--version'    output version information and exit\n"
+           "    '-T', '--trace'      [[enable=]<pattern>][,events=<file>][,file=<file>]\n"
+           "                         specify tracing options\n"
            "\n"
            "Command syntax:\n"
 #define DEF(option, callback, arg_string)        \
@@ -483,18 +490,17 @@ fail:
 
 static void dump_json_image_check(ImageCheck *check, bool quiet)
 {
-    Error *local_err = NULL;
     QString *str;
-    QmpOutputVisitor *ov = qmp_output_visitor_new();
     QObject *obj;
-    visit_type_ImageCheck(qmp_output_get_visitor(ov), NULL, &check,
-                          &local_err);
-    obj = qmp_output_get_qobject(ov);
+    Visitor *v = qmp_output_visitor_new(&obj);
+
+    visit_type_ImageCheck(v, NULL, &check, &error_abort);
+    visit_complete(v, &obj);
     str = qobject_to_json_pretty(obj);
     assert(str != NULL);
     qprintf(quiet, "%s\n", qstring_get_str(str));
     qobject_decref(obj);
-    qmp_output_visitor_cleanup(ov);
+    visit_free(v);
     QDECREF(str);
 }
 
@@ -1641,7 +1647,7 @@ static int convert_do_copy(ImgConvertState *s)
     if (!s->has_zero_init && !s->target_has_backing &&
         bdrv_can_write_zeroes_with_unmap(blk_bs(s->target)))
     {
-        ret = bdrv_make_zero(blk_bs(s->target), BDRV_REQ_MAY_UNMAP);
+        ret = blk_make_zero(s->target, BDRV_REQ_MAY_UNMAP);
         if (ret == 0) {
             s->has_zero_init = true;
         }
@@ -2078,13 +2084,14 @@ static int img_convert(int argc, char **argv)
     }
     out_bs = blk_bs(out_blk);
 
-    /* increase bufsectors from the default 4096 (2M) if opt_transfer_length
+    /* increase bufsectors from the default 4096 (2M) if opt_transfer
      * or discard_alignment of the out_bs is greater. Limit to 32768 (16MB)
      * as maximum. */
     bufsectors = MIN(32768,
-                     MAX(bufsectors, MAX(out_bs->bl.opt_transfer_length,
-                                         out_bs->bl.discard_alignment))
-                    );
+                     MAX(bufsectors,
+                         MAX(out_bs->bl.opt_transfer >> BDRV_SECTOR_BITS,
+                             out_bs->bl.pdiscard_alignment >>
+                             BDRV_SECTOR_BITS)));
 
     if (skip_create) {
         int64_t output_sectors = blk_nb_sectors(out_blk);
@@ -2174,34 +2181,33 @@ static void dump_snapshots(BlockDriverState *bs)
 
 static void dump_json_image_info_list(ImageInfoList *list)
 {
-    Error *local_err = NULL;
     QString *str;
-    QmpOutputVisitor *ov = qmp_output_visitor_new();
     QObject *obj;
-    visit_type_ImageInfoList(qmp_output_get_visitor(ov), NULL, &list,
-                             &local_err);
-    obj = qmp_output_get_qobject(ov);
+    Visitor *v = qmp_output_visitor_new(&obj);
+
+    visit_type_ImageInfoList(v, NULL, &list, &error_abort);
+    visit_complete(v, &obj);
     str = qobject_to_json_pretty(obj);
     assert(str != NULL);
     printf("%s\n", qstring_get_str(str));
     qobject_decref(obj);
-    qmp_output_visitor_cleanup(ov);
+    visit_free(v);
     QDECREF(str);
 }
 
 static void dump_json_image_info(ImageInfo *info)
 {
-    Error *local_err = NULL;
     QString *str;
-    QmpOutputVisitor *ov = qmp_output_visitor_new();
     QObject *obj;
-    visit_type_ImageInfo(qmp_output_get_visitor(ov), NULL, &info, &local_err);
-    obj = qmp_output_get_qobject(ov);
+    Visitor *v = qmp_output_visitor_new(&obj);
+
+    visit_type_ImageInfo(v, NULL, &info, &error_abort);
+    visit_complete(v, &obj);
     str = qobject_to_json_pretty(obj);
     assert(str != NULL);
     printf("%s\n", qstring_get_str(str));
     qobject_decref(obj);
-    qmp_output_visitor_cleanup(ov);
+    visit_free(v);
     QDECREF(str);
 }
 
@@ -3570,7 +3576,11 @@ static int img_bench(int argc, char **argv)
     BlockBackend *blk = NULL;
     BenchData data = {};
     int flags = 0;
+<<<<<<< HEAD
     bool writethrough;
+=======
+    bool writethrough = false;
+>>>>>>> upstream/master
     struct timeval t1, t2;
     int i;
 
@@ -3803,10 +3813,12 @@ int main(int argc, char **argv)
     const img_cmd_t *cmd;
     const char *cmdname;
     Error *local_error = NULL;
+    char *trace_file = NULL;
     int c;
     static const struct option long_options[] = {
         {"help", no_argument, 0, 'h'},
-        {"version", no_argument, 0, 'v'},
+        {"version", no_argument, 0, 'V'},
+        {"trace", required_argument, NULL, 'T'},
         {0, 0, 0, 0}
     };
 
@@ -3829,26 +3841,47 @@ int main(int argc, char **argv)
     if (argc < 2) {
         error_exit("Not enough arguments");
     }
-    cmdname = argv[1];
 
     qemu_add_opts(&qemu_object_opts);
     qemu_add_opts(&qemu_source_opts);
+    qemu_add_opts(&qemu_trace_opts);
+
+    while ((c = getopt_long(argc, argv, "+hVT:", long_options, NULL)) != -1) {
+        switch (c) {
+        case 'h':
+            help();
+            return 0;
+        case 'V':
+            printf(QEMU_IMG_VERSION);
+            return 0;
+        case 'T':
+            g_free(trace_file);
+            trace_file = trace_opt_parse(optarg);
+            break;
+        }
+    }
+
+    cmdname = argv[optind];
+
+    /* reset getopt_long scanning */
+    argc -= optind;
+    if (argc < 1) {
+        return 0;
+    }
+    argv += optind;
+    optind = 0;
+
+    if (!trace_init_backends()) {
+        exit(1);
+    }
+    trace_init_file(trace_file);
+    qemu_set_log(LOG_TRACE);
 
     /* find the command */
     for (cmd = img_cmds; cmd->name != NULL; cmd++) {
         if (!strcmp(cmdname, cmd->name)) {
-            return cmd->handler(argc - 1, argv + 1);
+            return cmd->handler(argc, argv);
         }
-    }
-
-    c = getopt_long(argc, argv, "h", long_options, NULL);
-
-    if (c == 'h') {
-        help();
-    }
-    if (c == 'v') {
-        printf(QEMU_IMG_VERSION);
-        return 0;
     }
 
     /* not found */

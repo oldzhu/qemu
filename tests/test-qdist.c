@@ -5,7 +5,10 @@
  *   See the COPYING file in the top-level directory.
  */
 #include "qemu/osdep.h"
+<<<<<<< HEAD
 #include <glib.h>
+=======
+>>>>>>> upstream/master
 #include "qemu/qdist.h"
 
 #include <math.h>

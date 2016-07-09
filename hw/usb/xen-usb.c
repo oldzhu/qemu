@@ -21,7 +21,10 @@
 
 #include "qemu/osdep.h"
 #include <libusb.h>
+<<<<<<< HEAD
 #include <sys/mman.h>
+=======
+>>>>>>> upstream/master
 
 #include "qemu-common.h"
 #include "qemu/config-file.h"

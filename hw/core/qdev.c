@@ -741,6 +741,7 @@ static void qdev_get_legacy_property(Object *obj, Visitor *v,
  * @dev: Device to add the property to.
  * @prop: The qdev property definition.
  * @errp: location to store error information.
+<<<<<<< HEAD
  *
  * Add a legacy QOM property to @dev for qdev property @prop.
  * On error, store error in @errp.
@@ -749,6 +750,16 @@ static void qdev_get_legacy_property(Object *obj, Visitor *v,
  * the string depends on the property type.  Legacy properties are only
  * needed for "info qtree".
  *
+=======
+ *
+ * Add a legacy QOM property to @dev for qdev property @prop.
+ * On error, store error in @errp.
+ *
+ * Legacy properties are string versions of QOM properties.  The format of
+ * the string depends on the property type.  Legacy properties are only
+ * needed for "info qtree".
+ *
+>>>>>>> upstream/master
  * Do not use this is new code!  QOM Properties added through this interface
  * will be given names in the "legacy" namespace.
  */
@@ -902,6 +913,14 @@ static void device_set_realized(Object *obj, bool value, Error **errp)
             g_free(name);
         }
 
+        hotplug_ctrl = qdev_get_hotplug_handler(dev);
+        if (hotplug_ctrl) {
+            hotplug_handler_pre_plug(hotplug_ctrl, dev, &local_err);
+            if (local_err != NULL) {
+                goto fail;
+            }
+        }
+
         if (dc->realize) {
             dc->realize(dev, &local_err);
         }
@@ -912,7 +931,6 @@ static void device_set_realized(Object *obj, bool value, Error **errp)
 
         DEVICE_LISTENER_CALL(realize, Forward, dev);
 
-        hotplug_ctrl = qdev_get_hotplug_handler(dev);
         if (hotplug_ctrl) {
             hotplug_handler_plug(hotplug_ctrl, dev, &local_err);
         }

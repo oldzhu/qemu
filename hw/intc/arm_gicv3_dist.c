@@ -10,6 +10,10 @@
  */
 
 #include "qemu/osdep.h"
+<<<<<<< HEAD
+=======
+#include "qemu/log.h"
+>>>>>>> upstream/master
 #include "trace.h"
 #include "gicv3_internal.h"
 

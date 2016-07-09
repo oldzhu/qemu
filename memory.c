@@ -1376,6 +1376,21 @@ void memory_region_init_alias(MemoryRegion *mr,
     mr->alias_offset = offset;
 }
 
+void memory_region_init_rom(MemoryRegion *mr,
+                            struct Object *owner,
+                            const char *name,
+                            uint64_t size,
+                            Error **errp)
+{
+    memory_region_init(mr, owner, name, size);
+    mr->ram = true;
+    mr->readonly = true;
+    mr->terminates = true;
+    mr->destructor = memory_region_destructor_ram;
+    mr->ram_block = qemu_ram_alloc(size, mr, errp);
+    mr->dirty_log_mask = tcg_enabled() ? (1 << DIRTY_MEMORY_CODE) : 0;
+}
+
 void memory_region_init_rom_device(MemoryRegion *mr,
                                    Object *owner,
                                    const MemoryRegionOps *ops,
@@ -1384,6 +1399,7 @@ void memory_region_init_rom_device(MemoryRegion *mr,
                                    uint64_t size,
                                    Error **errp)
 {
+    assert(ops);
     memory_region_init(mr, owner, name, size);
     mr->ops = ops;
     mr->opaque = opaque;
@@ -1499,10 +1515,15 @@ bool memory_region_is_logging(MemoryRegion *mr, uint8_t client)
 
 void memory_region_register_iommu_notifier(MemoryRegion *mr, Notifier *n)
 {
+    if (mr->iommu_ops->notify_started &&
+        QLIST_EMPTY(&mr->iommu_notify.notifiers)) {
+        mr->iommu_ops->notify_started(mr);
+    }
     notifier_list_add(&mr->iommu_notify, n);
 }
 
 uint64_t memory_region_iommu_get_min_page_size(MemoryRegion *mr)
+<<<<<<< HEAD
 {
     assert(memory_region_is_iommu(mr));
     if (mr->iommu_ops && mr->iommu_ops->get_min_page_size) {
@@ -1513,6 +1534,18 @@ uint64_t memory_region_iommu_get_min_page_size(MemoryRegion *mr)
 
 void memory_region_iommu_replay(MemoryRegion *mr, Notifier *n, bool is_write)
 {
+=======
+{
+    assert(memory_region_is_iommu(mr));
+    if (mr->iommu_ops && mr->iommu_ops->get_min_page_size) {
+        return mr->iommu_ops->get_min_page_size(mr);
+    }
+    return TARGET_PAGE_SIZE;
+}
+
+void memory_region_iommu_replay(MemoryRegion *mr, Notifier *n, bool is_write)
+{
+>>>>>>> upstream/master
     hwaddr addr, granularity;
     IOMMUTLBEntry iotlb;
 
@@ -1532,9 +1565,13 @@ void memory_region_iommu_replay(MemoryRegion *mr, Notifier *n, bool is_write)
     }
 }
 
-void memory_region_unregister_iommu_notifier(Notifier *n)
+void memory_region_unregister_iommu_notifier(MemoryRegion *mr, Notifier *n)
 {
     notifier_remove(n);
+    if (mr->iommu_ops->notify_stopped &&
+        QLIST_EMPTY(&mr->iommu_notify.notifiers)) {
+        mr->iommu_ops->notify_stopped(mr);
+    }
 }
 
 void memory_region_notify_iommu(MemoryRegion *mr,

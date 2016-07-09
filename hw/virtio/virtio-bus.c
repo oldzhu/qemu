@@ -176,8 +176,13 @@ static int set_host_notifier_internal(DeviceState *proxy, VirtioBusState *bus,
             return r;
         }
     } else {
+<<<<<<< HEAD
         virtio_queue_set_host_notifier_fd_handler(vq, false, false);
         k->ioeventfd_assign(proxy, notifier, n, assign);
+=======
+        k->ioeventfd_assign(proxy, notifier, n, assign);
+        virtio_queue_set_host_notifier_fd_handler(vq, false, false);
+>>>>>>> upstream/master
         event_notifier_cleanup(notifier);
     }
     return r;
@@ -251,16 +256,24 @@ int virtio_bus_set_host_notifier(VirtioBusState *bus, int n, bool assign)
 {
     VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(bus);
     DeviceState *proxy = DEVICE(BUS(bus)->parent);
+<<<<<<< HEAD
     VirtIODevice *vdev = virtio_bus_get_device(bus);
     VirtQueue *vq = virtio_get_queue(vdev, n);
+=======
+>>>>>>> upstream/master
 
     if (!k->ioeventfd_started) {
         return -ENOSYS;
     }
+<<<<<<< HEAD
+=======
+    k->ioeventfd_set_disabled(proxy, assign);
+>>>>>>> upstream/master
     if (assign) {
         /*
          * Stop using the generic ioeventfd, we are doing eventfd handling
          * ourselves below
+<<<<<<< HEAD
          */
         k->ioeventfd_set_disabled(proxy, true);
     }
@@ -276,6 +289,18 @@ int virtio_bus_set_host_notifier(VirtioBusState *bus, int n, bool assign)
         k->ioeventfd_set_disabled(proxy, false);
     }
     return 0;
+=======
+         *
+         * FIXME: We should just switch the handler and not deassign the
+         * ioeventfd.
+         * Otherwise, there's a window where we don't have an
+         * ioeventfd and we may end up with a notification where
+         * we don't expect one.
+         */
+        virtio_bus_stop_ioeventfd(bus);
+    }
+    return set_host_notifier_internal(proxy, bus, n, assign, false);
+>>>>>>> upstream/master
 }
 
 static char *virtio_bus_get_dev_path(DeviceState *dev)

@@ -417,7 +417,11 @@ static bool is_byte_request_lun_aligned(int64_t offset, int count,
 static bool is_sector_request_lun_aligned(int64_t sector_num, int nb_sectors,
                                           IscsiLun *iscsilun)
 {
+<<<<<<< HEAD
     assert(nb_sectors < BDRV_REQUEST_MAX_SECTORS);
+=======
+    assert(nb_sectors <= BDRV_REQUEST_MAX_SECTORS);
+>>>>>>> upstream/master
     return is_byte_request_lun_aligned(sector_num << BDRV_SECTOR_BITS,
                                        nb_sectors << BDRV_SECTOR_BITS,
                                        iscsilun);
@@ -473,9 +477,10 @@ iscsi_co_writev_flags(BlockDriverState *bs, int64_t sector_num, int nb_sectors,
         return -EINVAL;
     }
 
-    if (bs->bl.max_transfer_length && nb_sectors > bs->bl.max_transfer_length) {
+    if (bs->bl.max_transfer &&
+        nb_sectors << BDRV_SECTOR_BITS > bs->bl.max_transfer) {
         error_report("iSCSI Error: Write of %d sectors exceeds max_xfer_len "
-                     "of %d sectors", nb_sectors, bs->bl.max_transfer_length);
+                     "of %" PRIu32 " bytes", nb_sectors, bs->bl.max_transfer);
         return -EINVAL;
     }
 
@@ -650,9 +655,10 @@ static int coroutine_fn iscsi_co_readv(BlockDriverState *bs,
         return -EINVAL;
     }
 
-    if (bs->bl.max_transfer_length && nb_sectors > bs->bl.max_transfer_length) {
+    if (bs->bl.max_transfer &&
+        nb_sectors << BDRV_SECTOR_BITS > bs->bl.max_transfer) {
         error_report("iSCSI Error: Read of %d sectors exceeds max_xfer_len "
-                     "of %d sectors", nb_sectors, bs->bl.max_transfer_length);
+                     "of %" PRIu32 " bytes", nb_sectors, bs->bl.max_transfer);
         return -EINVAL;
     }
 
@@ -661,7 +667,8 @@ static int coroutine_fn iscsi_co_readv(BlockDriverState *bs,
         int64_t ret;
         int pnum;
         BlockDriverState *file;
-        ret = iscsi_co_get_block_status(bs, sector_num, INT_MAX, &pnum, &file);
+        ret = iscsi_co_get_block_status(bs, sector_num,
+                                        BDRV_REQUEST_MAX_SECTORS, &pnum, &file);
         if (ret < 0) {
             return ret;
         }
@@ -1588,14 +1595,13 @@ static int iscsi_open(BlockDriverState *bs, QDict *options, int flags,
         goto out;
     }
     bs->total_sectors = sector_lun2qemu(iscsilun->num_blocks, iscsilun);
-    bs->request_alignment = iscsilun->block_size;
 
     /* We don't have any emulation for devices other than disks and CD-ROMs, so
      * this must be sg ioctl compatible. We force it to be sg, otherwise qemu
      * will try to read from the device to guess the image format.
      */
     if (iscsilun->type != TYPE_DISK && iscsilun->type != TYPE_ROM) {
-        bs->sg = 1;
+        bs->sg = true;
     }
 
     task = iscsi_do_inquiry(iscsilun->iscsi, iscsilun->lun, 1,
@@ -1695,34 +1701,40 @@ static void iscsi_close(BlockDriverState *bs)
     memset(iscsilun, 0, sizeof(IscsiLun));
 }
 
-static int sector_limits_lun2qemu(int64_t sector, IscsiLun *iscsilun)
-{
-    return MIN(sector_lun2qemu(sector, iscsilun), INT_MAX / 2 + 1);
-}
-
 static void iscsi_refresh_limits(BlockDriverState *bs, Error **errp)
 {
     /* We don't actually refresh here, but just return data queried in
      * iscsi_open(): iscsi targets don't change their limits. */
 
     IscsiLun *iscsilun = bs->opaque;
-    uint32_t max_xfer_len = iscsilun->use_16_for_rw ? 0xffffffff : 0xffff;
+    uint64_t max_xfer_len = iscsilun->use_16_for_rw ? 0xffffffff : 0xffff;
+
+    bs->bl.request_alignment = iscsilun->block_size;
 
     if (iscsilun->bl.max_xfer_len) {
         max_xfer_len = MIN(max_xfer_len, iscsilun->bl.max_xfer_len);
     }
 
-    bs->bl.max_transfer_length = sector_limits_lun2qemu(max_xfer_len, iscsilun);
+    if (max_xfer_len * iscsilun->block_size < INT_MAX) {
+        bs->bl.max_transfer = max_xfer_len * iscsilun->block_size;
+    }
 
     if (iscsilun->lbp.lbpu) {
-        if (iscsilun->bl.max_unmap < 0xffffffff) {
-            bs->bl.max_discard =
-                sector_limits_lun2qemu(iscsilun->bl.max_unmap, iscsilun);
+        if (iscsilun->bl.max_unmap < 0xffffffff / iscsilun->block_size) {
+            bs->bl.max_pdiscard =
+                iscsilun->bl.max_unmap * iscsilun->block_size;
         }
+<<<<<<< HEAD
         bs->bl.discard_alignment =
             sector_limits_lun2qemu(iscsilun->bl.opt_unmap_gran, iscsilun);
     } else {
         bs->bl.discard_alignment = iscsilun->block_size >> BDRV_SECTOR_BITS;
+=======
+        bs->bl.pdiscard_alignment =
+            iscsilun->bl.opt_unmap_gran * iscsilun->block_size;
+    } else {
+        bs->bl.pdiscard_alignment = iscsilun->block_size;
+>>>>>>> upstream/master
     }
 
     if (iscsilun->bl.max_ws_len < 0xffffffff / iscsilun->block_size) {
@@ -1734,9 +1746,15 @@ static void iscsi_refresh_limits(BlockDriverState *bs, Error **errp)
             iscsilun->bl.opt_unmap_gran * iscsilun->block_size;
     } else {
         bs->bl.pwrite_zeroes_alignment = iscsilun->block_size;
+<<<<<<< HEAD
+=======
     }
-    bs->bl.opt_transfer_length =
-        sector_limits_lun2qemu(iscsilun->bl.opt_xfer_len, iscsilun);
+    if (iscsilun->bl.opt_xfer_len &&
+        iscsilun->bl.opt_xfer_len < INT_MAX / iscsilun->block_size) {
+        bs->bl.opt_transfer = pow2floor(iscsilun->bl.opt_xfer_len *
+                                        iscsilun->block_size);
+>>>>>>> upstream/master
+    }
 }
 
 /* Note that this will not re-establish a connection with an iSCSI target - it

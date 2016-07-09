@@ -6,6 +6,10 @@
  * License: GNU GPL, version 2 or later.
  *   See the COPYING file in the top-level directory.
  */
+<<<<<<< HEAD
+=======
+#include "qemu/osdep.h"
+>>>>>>> upstream/master
 #include "qemu/qdist.h"
 
 #include <math.h>

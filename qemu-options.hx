@@ -38,7 +38,6 @@ DEF("machine", HAS_ARG, QEMU_OPTION_machine, \
     "                kvm_shadow_mem=size of KVM shadow MMU in bytes\n"
     "                dump-guest-core=on|off include guest memory in a core dump (default=on)\n"
     "                mem-merge=on|off controls memory merge support (default: on)\n"
-    "                iommu=on|off controls emulated Intel IOMMU (VT-d) support (default=off)\n"
     "                igd-passthru=on|off controls IGD GFX passthrough support (default=off)\n"
     "                aes-key-wrap=on|off controls support for AES key wrapping (default=on)\n"
     "                dea-key-wrap=on|off controls support for DEA key wrapping (default=on)\n"
@@ -73,8 +72,6 @@ Include guest memory in a core dump. The default is on.
 Enables or disables memory merge support. This feature, when supported by
 the host, de-duplicates identical memory pages among VMs instances
 (enabled by default).
-@item iommu=on|off
-Enables or disables emulated Intel IOMMU (VT-d) support. The default is off.
 @item aes-key-wrap=on|off
 Enables or disables AES key wrapping support on s390-ccw hosts. This feature
 controls whether AES wrapping keys will be created to allow
@@ -1584,6 +1581,7 @@ DEF("netdev", HAS_ARG, QEMU_OPTION_netdev,
     "-netdev tap,id=str[,fd=h][,fds=x:y:...:z][,ifname=name][,script=file][,downscript=dfile]\n"
     "         [,helper=helper][,sndbuf=nbytes][,vnet_hdr=on|off][,vhost=on|off]\n"
     "         [,vhostfd=h][,vhostfds=x:y:...:z][,vhostforce=on|off][,queues=n]\n"
+    "         [,poll-us=n]\n"
     "                configure a host TAP network backend with ID 'str'\n"
     "                use network scripts 'file' (default=" DEFAULT_NETWORK_SCRIPT ")\n"
     "                to configure it and 'dfile' (default=" DEFAULT_NETWORK_DOWN_SCRIPT ")\n"
@@ -1603,6 +1601,8 @@ DEF("netdev", HAS_ARG, QEMU_OPTION_netdev,
     "                use 'vhostfd=h' to connect to an already opened vhost net device\n"
     "                use 'vhostfds=x:y:...:z to connect to multiple already opened vhost net devices\n"
     "                use 'queues=n' to specify the number of queues to be created for multiqueue TAP\n"
+    "                use 'poll-us=n' to speciy the maximum number of microseconds that could be\n"
+    "                spent on busy polling for vhost net\n"
     "-netdev bridge,id=str[,br=bridge][,helper=helper]\n"
     "                configure a host TAP network backend with ID 'str' that is\n"
     "                connected to a bridge (default=" DEFAULT_BRIDGE_INTERFACE ")\n"
@@ -3214,6 +3214,8 @@ STEXI
 @item -L  @var{path}
 @findex -L
 Set the directory for the BIOS, VGA BIOS and keymaps.
+
+To list all the data directories, use @code{-L help}.
 ETEXI
 
 DEF("bios", HAS_ARG, QEMU_OPTION_bios, \
@@ -3667,34 +3669,9 @@ DEF("trace", HAS_ARG, QEMU_OPTION_trace,
 STEXI
 HXCOMM This line is not accurate, as some sub-options are backend-specific but
 HXCOMM HX does not support conditional compilation of text.
-@item -trace [events=@var{file}][,file=@var{file}]
+@item -trace [[enable=]@var{pattern}][,events=@var{file}][,file=@var{file}]
 @findex -trace
-
-Specify tracing options.
-
-@table @option
-@item [enable=]@var{pattern}
-Immediately enable events matching @var{pattern}.
-The file must contain one event name (as listed in the @file{trace-events} file)
-per line; globbing patterns are accepted too.  This option is only
-available if QEMU has been compiled with the @var{simple}, @var{stderr}
-or @var{ftrace} tracing backend.  To specify multiple events or patterns,
-specify the @option{-trace} option multiple times.
-
-Use @code{-trace help} to print a list of names of trace points.
-
-@item events=@var{file}
-Immediately enable events listed in @var{file}.
-The file must contain one event name (as listed in the @file{trace-events} file)
-per line; globbing patterns are accepted too.  This option is only
-available if QEMU has been compiled with the @var{simple}, @var{stderr} or
-@var{ftrace} tracing backend.
-
-@item file=@var{file}
-Log output traces to @var{file}.
-This option is only available if QEMU has been compiled with
-the @var{simple} tracing backend.
-@end table
+@include qemu-option-trace.texi
 ETEXI
 
 HXCOMM Internal use

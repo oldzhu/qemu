@@ -22,7 +22,11 @@ typedef struct VhostUserState {
     NetClientState nc;
     CharDriverState *chr;
     VHostNetState *vhost_net;
+<<<<<<< HEAD
     int watch;
+=======
+    guint watch;
+>>>>>>> upstream/master
     uint64_t acked_features;
 } VhostUserState;
 
@@ -91,6 +95,7 @@ static int vhost_user_start(int queues, NetClientState *ncs[])
 
         options.net_backend = ncs[i];
         options.opaque      = s->chr;
+        options.busyloop_timeout = 0;
         s->vhost_net = vhost_net_init(&options);
         if (!s->vhost_net) {
             error_report("failed to init vhost_net for queue %d", i);
@@ -150,6 +155,11 @@ static void vhost_user_cleanup(NetClientState *nc)
     if (s->vhost_net) {
         vhost_net_cleanup(s->vhost_net);
         s->vhost_net = NULL;
+    }
+    if (s->chr) {
+        qemu_chr_add_handlers(s->chr, NULL, NULL, NULL, NULL);
+        qemu_chr_fe_release(s->chr);
+        s->chr = NULL;
     }
 
     qemu_purge_queued_packets(nc);

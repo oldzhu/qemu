@@ -565,7 +565,11 @@ target_ulong do_arm_semihosting(CPUARMState *env)
     case TARGET_SYS_HEAPINFO:
         {
             target_ulong retvals[4];
+<<<<<<< HEAD
             uint32_t limit;
+=======
+            target_ulong limit;
+>>>>>>> upstream/master
             int i;
 
             GET_ARG(0);

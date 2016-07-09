@@ -77,6 +77,11 @@ enum {
 
 /* Maximum size of a single READ/WRITE data buffer */
 #define NBD_MAX_BUFFER_SIZE (32 * 1024 * 1024)
+<<<<<<< HEAD
+=======
+#define NBD_MAX_SECTORS (NBD_MAX_BUFFER_SIZE / BDRV_SECTOR_SIZE)
+
+>>>>>>> upstream/master
 /* Maximum size of an export name. The NBD spec requires 256 and
  * suggests that servers support up to 4096, but we stick to only the
  * required size so that we can stack-allocate the names, and because

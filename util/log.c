@@ -131,8 +131,8 @@ bool qemu_log_in_addr_range(uint64_t addr)
     if (debug_regions) {
         int i = 0;
         for (i = 0; i < debug_regions->len; i++) {
-            struct Range *range = &g_array_index(debug_regions, Range, i);
-            if (addr >= range->begin && addr <= range->end) {
+            Range *range = &g_array_index(debug_regions, Range, i);
+            if (range_contains(range, addr)) {
                 return true;
             }
         }
@@ -158,7 +158,11 @@ void qemu_set_dfilter_ranges(const char *filter_spec, Error **errp)
     for (i = 0; ranges[i]; i++) {
         const char *r = ranges[i];
         const char *range_op, *r2, *e;
+<<<<<<< HEAD
         uint64_t r1val, r2val;
+=======
+        uint64_t r1val, r2val, lob, upb;
+>>>>>>> upstream/master
         struct Range range;
 
         range_op = strstr(r, "-");
@@ -187,6 +191,7 @@ void qemu_set_dfilter_ranges(const char *filter_spec, Error **errp)
                        (int)(r2 - range_op), range_op);
             goto out;
         }
+<<<<<<< HEAD
         if (r2val == 0) {
             error_setg(errp, "Invalid range");
             goto out;
@@ -208,6 +213,30 @@ void qemu_set_dfilter_ranges(const char *filter_spec, Error **errp)
         default:
             g_assert_not_reached();
         }
+=======
+
+        switch (*range_op) {
+        case '+':
+            lob = r1val;
+            upb = r1val + r2val - 1;
+            break;
+        case '-':
+            upb = r1val;
+            lob = r1val - (r2val - 1);
+            break;
+        case '.':
+            lob = r1val;
+            upb = r2val;
+            break;
+        default:
+            g_assert_not_reached();
+        }
+        if (lob > upb) {
+            error_setg(errp, "Invalid range");
+            goto out;
+        }
+        range_set_bounds(&range, lob, upb);
+>>>>>>> upstream/master
         g_array_append_val(debug_regions, range);
     }
 out:

@@ -65,6 +65,10 @@
  *   + Corbet, "Relativistic hash tables, part 1: Algorithms", @ lwn.net, 2014.
  *     https://lwn.net/Articles/612021/
  */
+<<<<<<< HEAD
+=======
+#include "qemu/osdep.h"
+>>>>>>> upstream/master
 #include "qemu/qht.h"
 #include "qemu/atomic.h"
 #include "qemu/rcu.h"

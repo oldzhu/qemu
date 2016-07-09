@@ -28,7 +28,11 @@
 
 #include "qemu/osdep.h"
 #include "qemu/log.h"
+<<<<<<< HEAD
 #include "hw/misc/aux.h"
+=======
+#include "hw/misc/auxbus.h"
+>>>>>>> upstream/master
 #include "hw/display/dpcd.h"
 
 #ifndef DEBUG_DPCD
