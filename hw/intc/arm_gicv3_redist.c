@@ -423,6 +423,8 @@ MemTxResult gicv3_redist_read(void *opaque, hwaddr offset, uint64_t *data,
     MemTxResult r;
     int cpuidx;
 
+    assert((offset & (size - 1)) == 0);
+
     /* This region covers all the redistributor pages; there are
      * (for GICv3) two 64K pages per CPU. At the moment they are
      * all contiguous (ie in this one region), though we might later
@@ -470,6 +472,8 @@ MemTxResult gicv3_redist_write(void *opaque, hwaddr offset, uint64_t data,
     GICv3CPUState *cs;
     MemTxResult r;
     int cpuidx;
+
+    assert((offset & (size - 1)) == 0);
 
     /* This region covers all the redistributor pages; there are
      * (for GICv3) two 64K pages per CPU. At the moment they are
