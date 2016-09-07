@@ -540,17 +540,6 @@ static int bdrv_check_byte_request(BlockDriverState *bs, int64_t offset,
     return 0;
 }
 
-static int bdrv_check_request(BlockDriverState *bs, int64_t sector_num,
-                              int nb_sectors)
-{
-    if (nb_sectors < 0 || nb_sectors > BDRV_REQUEST_MAX_SECTORS) {
-        return -EIO;
-    }
-
-    return bdrv_check_byte_request(bs, sector_num * BDRV_SECTOR_SIZE,
-                                   nb_sectors * BDRV_SECTOR_SIZE);
-}
-
 typedef struct RwCo {
     BdrvChild *child;
     int64_t offset;
@@ -647,11 +636,7 @@ int bdrv_write(BdrvChild *child, int64_t sector_num,
     return bdrv_rw_co(child, sector_num, (uint8_t *)buf, nb_sectors, true, 0);
 }
 
-<<<<<<< HEAD
-int bdrv_pwrite_zeroes(BlockDriverState *bs, int64_t offset,
-=======
 int bdrv_pwrite_zeroes(BdrvChild *child, int64_t offset,
->>>>>>> upstream/master
                        int count, BdrvRequestFlags flags)
 {
     QEMUIOVector qiov;
@@ -661,11 +646,7 @@ int bdrv_pwrite_zeroes(BdrvChild *child, int64_t offset,
     };
 
     qemu_iovec_init_external(&qiov, &iov, 1);
-<<<<<<< HEAD
-    return bdrv_prwv_co(bs, offset, &qiov, true,
-=======
     return bdrv_prwv_co(child, offset, &qiov, true,
->>>>>>> upstream/master
                         BDRV_REQ_ZERO_WRITE | flags);
 }
 
@@ -705,11 +686,7 @@ int bdrv_make_zero(BdrvChild *child, BdrvRequestFlags flags)
             sector_num += n;
             continue;
         }
-<<<<<<< HEAD
-        ret = bdrv_pwrite_zeroes(bs, sector_num << BDRV_SECTOR_BITS,
-=======
         ret = bdrv_pwrite_zeroes(child, sector_num << BDRV_SECTOR_BITS,
->>>>>>> upstream/master
                                  n << BDRV_SECTOR_BITS, flags);
         if (ret < 0) {
             error_report("error writing zeroes at sector %" PRId64 ": %s",
@@ -909,6 +886,19 @@ emulate_flags:
     return ret;
 }
 
+static int coroutine_fn
+bdrv_driver_pwritev_compressed(BlockDriverState *bs, uint64_t offset,
+                               uint64_t bytes, QEMUIOVector *qiov)
+{
+    BlockDriver *drv = bs->drv;
+
+    if (!drv->bdrv_co_pwritev_compressed) {
+        return -ENOTSUP;
+    }
+
+    return drv->bdrv_co_pwritev_compressed(bs, offset, bytes, qiov);
+}
+
 static int coroutine_fn bdrv_co_do_copy_on_readv(BlockDriverState *bs,
         int64_t offset, unsigned int bytes, QEMUIOVector *qiov)
 {
@@ -952,17 +942,10 @@ static int coroutine_fn bdrv_co_do_copy_on_readv(BlockDriverState *bs,
 
     if (drv->bdrv_co_pwrite_zeroes &&
         buffer_is_zero(bounce_buffer, iov.iov_len)) {
-<<<<<<< HEAD
-        ret = bdrv_co_do_pwrite_zeroes(bs,
-                                       cluster_sector_num * BDRV_SECTOR_SIZE,
-                                       cluster_nb_sectors * BDRV_SECTOR_SIZE,
-                                       0);
-=======
         /* FIXME: Should we (perhaps conditionally) be setting
          * BDRV_REQ_MAY_UNMAP, if it will allow for a sparser copy
          * that still correctly reads as zero? */
         ret = bdrv_co_do_pwrite_zeroes(bs, cluster_offset, cluster_bytes, 0);
->>>>>>> upstream/master
     } else {
         /* This does not change the data on the disk, it is not necessary
          * to flush even in cache=writethrough mode.
@@ -1196,13 +1179,8 @@ static int coroutine_fn bdrv_co_do_pwrite_zeroes(BlockDriverState *bs,
     int tail = 0;
 
     int max_write_zeroes = MIN_NON_ZERO(bs->bl.max_pwrite_zeroes, INT_MAX);
-<<<<<<< HEAD
-    int alignment = MAX(bs->bl.pwrite_zeroes_alignment ?: 1,
-                        bs->request_alignment);
-=======
     int alignment = MAX(bs->bl.pwrite_zeroes_alignment,
                         bs->bl.request_alignment);
->>>>>>> upstream/master
 
     assert(alignment % bs->bl.request_alignment == 0);
     head = offset % alignment;
@@ -1257,11 +1235,7 @@ static int coroutine_fn bdrv_co_do_pwrite_zeroes(BlockDriverState *bs,
                 write_flags &= ~BDRV_REQ_FUA;
                 need_flush = true;
             }
-<<<<<<< HEAD
-            num = MIN(num, max_xfer_len << BDRV_SECTOR_BITS);
-=======
             num = MIN(num, max_transfer);
->>>>>>> upstream/master
             iov.iov_len = num;
             if (iov.iov_base == NULL) {
                 iov.iov_base = qemu_try_blockalign(bs, num);
@@ -1278,11 +1252,7 @@ static int coroutine_fn bdrv_co_do_pwrite_zeroes(BlockDriverState *bs,
             /* Keep bounce buffer around if it is big enough for all
              * all future requests.
              */
-<<<<<<< HEAD
-            if (num < max_xfer_len << BDRV_SECTOR_BITS) {
-=======
             if (num < max_transfer) {
->>>>>>> upstream/master
                 qemu_vfree(iov.iov_base);
                 iov.iov_base = NULL;
             }
@@ -1346,17 +1316,7 @@ static int coroutine_fn bdrv_aligned_pwritev(BlockDriverState *bs,
         /* Do nothing, write notifier decided to fail this request */
     } else if (flags & BDRV_REQ_ZERO_WRITE) {
         bdrv_debug_event(bs, BLKDBG_PWRITEV_ZERO);
-<<<<<<< HEAD
-        ret = bdrv_co_do_pwrite_zeroes(bs, sector_num << BDRV_SECTOR_BITS,
-                                       nb_sectors << BDRV_SECTOR_BITS, flags);
-=======
-        ret = bdrv_co_do_pwrite_zeroes(bs, offset, bytes, flags);
-<<<<<<< HEAD
->>>>>>> upstream/master
-    } else {
-=======
     } else if (bytes <= max_transfer) {
->>>>>>> upstream/master
         bdrv_debug_event(bs, BLKDBG_PWRITEV);
         ret = bdrv_driver_pwritev(bs, offset, bytes, qiov, flags);
     } else {
@@ -1643,28 +1603,16 @@ int coroutine_fn bdrv_co_writev(BdrvChild *child, int64_t sector_num,
     return bdrv_co_do_writev(child, sector_num, nb_sectors, qiov, 0);
 }
 
-<<<<<<< HEAD
-int coroutine_fn bdrv_co_pwrite_zeroes(BlockDriverState *bs,
-                                       int64_t offset, int count,
-                                       BdrvRequestFlags flags)
-{
-    trace_bdrv_co_pwrite_zeroes(bs, offset, count, flags);
-=======
 int coroutine_fn bdrv_co_pwrite_zeroes(BdrvChild *child, int64_t offset,
                                        int count, BdrvRequestFlags flags)
 {
     trace_bdrv_co_pwrite_zeroes(child->bs, offset, count, flags);
->>>>>>> upstream/master
 
     if (!(child->bs->open_flags & BDRV_O_UNMAP)) {
         flags &= ~BDRV_REQ_MAY_UNMAP;
     }
 
-<<<<<<< HEAD
-    return bdrv_co_pwritev(bs, offset, count, NULL,
-=======
     return bdrv_co_pwritev(child, offset, count, NULL,
->>>>>>> upstream/master
                            BDRV_REQ_ZERO_WRITE | flags);
 }
 
@@ -1932,28 +1880,6 @@ int bdrv_is_allocated_above(BlockDriverState *top,
     return 0;
 }
 
-int bdrv_write_compressed(BlockDriverState *bs, int64_t sector_num,
-                          const uint8_t *buf, int nb_sectors)
-{
-    BlockDriver *drv = bs->drv;
-    int ret;
-
-    if (!drv) {
-        return -ENOMEDIUM;
-    }
-    if (!drv->bdrv_write_compressed) {
-        return -ENOTSUP;
-    }
-    ret = bdrv_check_request(bs, sector_num, nb_sectors);
-    if (ret < 0) {
-        return ret;
-    }
-
-    assert(QLIST_EMPTY(&bs->dirty_bitmaps));
-
-    return drv->bdrv_write_compressed(bs, sector_num, buf, nb_sectors);
-}
-
 typedef struct BdrvVmstateCo {
     BlockDriverState    *bs;
     QEMUIOVector        *qiov;
@@ -2079,18 +2005,9 @@ BlockAIOCB *bdrv_aio_writev(BdrvChild *child, int64_t sector_num,
 {
     trace_bdrv_aio_writev(child->bs, sector_num, nb_sectors, opaque);
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-    return bdrv_co_aio_rw_vector(bs, sector_num, qiov, nb_sectors, 0,
-=======
-    return bdrv_co_aio_rw_vector(child, sector_num, qiov, nb_sectors, 0,
->>>>>>> upstream/master
-                                 cb, opaque, true);
-=======
     assert(nb_sectors << BDRV_SECTOR_BITS == qiov->size);
     return bdrv_co_aio_prw_vector(child, sector_num << BDRV_SECTOR_BITS, qiov,
                                   0, cb, opaque, true);
->>>>>>> upstream/master
 }
 
 void bdrv_aio_cancel(BlockAIOCB *acb)
