@@ -367,16 +367,19 @@ int e820_get_num_entries(void);
 bool e820_get_entry(int, uint32_t, uint64_t *, uint64_t *);
 
 #define PC_COMPAT_2_8 \
+
+#define PC_COMPAT_2_7 \
+    HW_COMPAT_2_7 \
     {\
         .driver   = TYPE_X86_CPU,\
         .property = "l3-cache",\
         .value    = "off",\
+    },\
+    {\
+        .driver   = TYPE_X86_CPU,\
+        .property = "full-cpuid-auto-level",\
+        .value    = "off",\
     },
-
-
-#define PC_COMPAT_2_7 \
-    PC_COMPAT_2_8 \
-    HW_COMPAT_2_7
 
 #define PC_COMPAT_2_6 \
     HW_COMPAT_2_6 \
@@ -411,7 +414,6 @@ bool e820_get_entry(int, uint32_t, uint64_t *, uint64_t *);
     },
 
 #define PC_COMPAT_2_5 \
-    PC_COMPAT_2_6 \
     HW_COMPAT_2_5
 
 /* Helper for setting model-id for CPU models that changed model-id

@@ -76,6 +76,8 @@ GENERATED_HEADERS += trace/generated-ust-provider.h
 GENERATED_SOURCES += trace/generated-ust.c
 endif
 
+GENERATED_HEADERS += module_block.h
+
 # Don't try to regenerate Makefile or configure
 # We don't generate any of them
 Makefile: ;
@@ -92,7 +94,6 @@ HELPERS-$(CONFIG_LINUX) = qemu-bridge-helper$(EXESUF)
 
 ifdef BUILD_DOCS
 DOCS=qemu-doc.html qemu-tech.html qemu.1 qemu-img.1 qemu-nbd.8 qemu-ga.8
-DOCS+=qmp-commands.txt
 ifdef CONFIG_VIRTFS
 DOCS+=fsdev/virtfs-proxy-helper.1
 endif
@@ -246,9 +247,6 @@ Makefile: $(version-obj-y) $(version-lobj-y)
 libqemustub.a: $(stub-obj-y)
 libqemuutil.a: $(util-obj-y)
 
-block-modules = $(foreach o,$(block-obj-m),"$(basename $(subst /,-,$o))",) NULL
-util/module.o-cflags = -D'CONFIG_BLOCK_MODULES=$(block-modules)'
-
 ######################################################################
 
 qemu-img.o: qemu-img-cmds.h
@@ -312,7 +310,7 @@ $(qapi-modules) $(SRC_PATH)/scripts/qapi-event.py $(qapi-py)
 qmp-commands.h qmp-marshal.c :\
 $(qapi-modules) $(SRC_PATH)/scripts/qapi-commands.py $(qapi-py)
 	$(call quiet-command,$(PYTHON) $(SRC_PATH)/scripts/qapi-commands.py \
-		$(gen-out-type) -o "." -m $<, \
+		$(gen-out-type) -o "." $<, \
 		"  GEN   $@")
 qmp-introspect.h qmp-introspect.c :\
 $(qapi-modules) $(SRC_PATH)/scripts/qapi-introspect.py $(qapi-py)
@@ -352,6 +350,11 @@ ivshmem-client$(EXESUF): $(ivshmem-client-obj-y) libqemuutil.a libqemustub.a
 	$(call LINK, $^)
 ivshmem-server$(EXESUF): $(ivshmem-server-obj-y) libqemuutil.a libqemustub.a
 	$(call LINK, $^)
+
+module_block.h: $(SRC_PATH)/scripts/modules/module_block.py config-host.mak
+	$(call quiet-command,$(PYTHON) $< $@ \
+	$(addprefix $(SRC_PATH)/,$(patsubst %.mo,%.c,$(block-obj-m))), \
+	"  GEN   $@")
 
 clean:
 # avoid old build problems by removing potentially incorrect old files
@@ -432,7 +435,7 @@ endif
 install-doc: $(DOCS)
 	$(INSTALL_DIR) "$(DESTDIR)$(qemu_docdir)"
 	$(INSTALL_DATA) qemu-doc.html  qemu-tech.html "$(DESTDIR)$(qemu_docdir)"
-	$(INSTALL_DATA) qmp-commands.txt "$(DESTDIR)$(qemu_docdir)"
+	$(INSTALL_DATA) $(SRC_PATH)/docs/qmp-commands.txt "$(DESTDIR)$(qemu_docdir)"
 ifdef CONFIG_POSIX
 	$(INSTALL_DIR) "$(DESTDIR)$(mandir)/man1"
 	$(INSTALL_DATA) qemu.1 "$(DESTDIR)$(mandir)/man1"
@@ -554,9 +557,6 @@ qemu-monitor.texi: $(SRC_PATH)/hmp-commands.hx $(SRC_PATH)/scripts/hxtool
 
 qemu-monitor-info.texi: $(SRC_PATH)/hmp-commands-info.hx $(SRC_PATH)/scripts/hxtool
 	$(call quiet-command,sh $(SRC_PATH)/scripts/hxtool -t < $< > $@,"  GEN   $@")
-
-qmp-commands.txt: $(SRC_PATH)/qmp-commands.hx $(SRC_PATH)/scripts/hxtool
-	$(call quiet-command,sh $(SRC_PATH)/scripts/hxtool -q < $< > $@,"  GEN   $@")
 
 qemu-img-cmds.texi: $(SRC_PATH)/qemu-img-cmds.hx $(SRC_PATH)/scripts/hxtool
 	$(call quiet-command,sh $(SRC_PATH)/scripts/hxtool -t < $< > $@,"  GEN   $@")
