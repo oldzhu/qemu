@@ -59,7 +59,6 @@
 #include "qapi/qmp/json-streamer.h"
 #include "qapi/qmp/json-parser.h"
 #include "qom/object_interfaces.h"
-#include "cpu.h"
 #include "trace.h"
 #include "trace/control.h"
 #include "monitor/hmp-target.h"
@@ -76,7 +75,6 @@
 #include "qapi/qmp-event.h"
 #include "qapi-event.h"
 #include "qmp-introspect.h"
-#include "sysemu/block-backend.h"
 #include "sysemu/qtest.h"
 #include "qemu/cutils.h"
 #include "qapi/qmp/dispatch.h"
@@ -950,7 +948,7 @@ EventInfoList *qmp_query_events(Error **errp)
  * directly into QObject instead of first parsing it with
  * visit_type_SchemaInfoList() into a SchemaInfoList, then marshal it
  * to QObject with generated output marshallers, every time.  Instead,
- * we do it in test-qmp-input-visitor.c, just to make sure
+ * we do it in test-qobject-input-visitor.c, just to make sure
  * qapi-introspect.py's output actually conforms to the schema.
  */
 static void qmp_query_qmp_schema(QDict *qdict, QObject **ret_data,
@@ -4094,7 +4092,7 @@ QemuOptsList qemu_mon_opts = {
             .name = "chardev",
             .type = QEMU_OPT_STRING,
         },{
-            .name = "default",
+            .name = "default",  /* deprecated */
             .type = QEMU_OPT_BOOL,
         },{
             .name = "pretty",

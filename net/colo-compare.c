@@ -92,10 +92,6 @@ typedef struct CompareClass {
     ObjectClass parent_class;
 } CompareClass;
 
-typedef struct CompareChardevProps {
-    bool is_socket;
-} CompareChardevProps;
-
 enum {
     PRIMARY_IN = 0,
     SECONDARY_IN,
@@ -188,7 +184,6 @@ static int colo_packet_compare_tcp(Packet *spkt, Packet *ppkt)
 {
     struct tcphdr *ptcp, *stcp;
     int res;
-    char *sdebug, *ddebug;
 
     trace_colo_compare_main("compare tcp");
     if (ppkt->size != spkt->size) {
@@ -219,24 +214,22 @@ static int colo_packet_compare_tcp(Packet *spkt, Packet *ppkt)
                 (spkt->size - ETH_HLEN));
 
     if (res != 0 && trace_event_get_state(TRACE_COLO_COMPARE_MISCOMPARE)) {
-        sdebug = strdup(inet_ntoa(ppkt->ip->ip_src));
-        ddebug = strdup(inet_ntoa(ppkt->ip->ip_dst));
-        fprintf(stderr, "%s: src/dst: %s/%s p: seq/ack=%u/%u"
-                " s: seq/ack=%u/%u res=%d flags=%x/%x\n",
-                __func__, sdebug, ddebug,
-                (unsigned int)ntohl(ptcp->th_seq),
-                (unsigned int)ntohl(ptcp->th_ack),
-                (unsigned int)ntohl(stcp->th_seq),
-                (unsigned int)ntohl(stcp->th_ack),
-                res, ptcp->th_flags, stcp->th_flags);
+        trace_colo_compare_pkt_info_src(inet_ntoa(ppkt->ip->ip_src),
+                                        ntohl(stcp->th_seq),
+                                        ntohl(stcp->th_ack),
+                                        res, stcp->th_flags,
+                                        spkt->size);
 
-        fprintf(stderr, "Primary len = %d\n", ppkt->size);
-        qemu_hexdump((char *)ppkt->data, stderr, "colo-compare", ppkt->size);
-        fprintf(stderr, "Secondary len = %d\n", spkt->size);
-        qemu_hexdump((char *)spkt->data, stderr, "colo-compare", spkt->size);
+        trace_colo_compare_pkt_info_dst(inet_ntoa(ppkt->ip->ip_dst),
+                                        ntohl(ptcp->th_seq),
+                                        ntohl(ptcp->th_ack),
+                                        res, ptcp->th_flags,
+                                        ppkt->size);
 
-        g_free(sdebug);
-        g_free(ddebug);
+        qemu_hexdump((char *)ppkt->data, stderr,
+                     "colo-compare ppkt", ppkt->size);
+        qemu_hexdump((char *)spkt->data, stderr,
+                     "colo-compare spkt", spkt->size);
     }
 
     return res;
@@ -575,16 +568,12 @@ static int find_and_check_chardev(CharDriverState **chr,
                                   char *chr_name,
                                   Error **errp)
 {
-    CompareChardevProps props;
-
     *chr = qemu_chr_find(chr_name);
     if (*chr == NULL) {
         error_setg(errp, "Device '%s' not found",
                    chr_name);
         return 1;
     }
-
-    memset(&props, 0, sizeof(props));
 
     if (!qemu_chr_has_feature(*chr, QEMU_CHAR_FEATURE_RECONNECTABLE)) {
         error_setg(errp, "chardev \"%s\" is not reconnectable",
