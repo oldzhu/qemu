@@ -10,6 +10,7 @@ typedef enum {
     ACPI_PCI_HOTPLUG_STATUS = 2,
     ACPI_CPU_HOTPLUG_STATUS = 4,
     ACPI_MEMORY_HOTPLUG_STATUS = 8,
+    ACPI_NVDIMM_HOTPLUG_STATUS = 16,
 } AcpiEventStatusBits;
 
 /* These values are part of guest ABI, and can not be changed */
