@@ -26,6 +26,7 @@
 # The <format-string> should be a sprintf()-compatible format string.
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 # util/oslib-win32.c
 # util/oslib-posix.c
 qemu_memalign(size_t alignment, size_t size, void *ptr) "alignment %zu size %zu ptr %p"
@@ -126,6 +127,14 @@ virtio_blk_data_plane_stop(void *s) "dataplane %p"
 virtio_blk_data_plane_process_request(void *s, unsigned int out_num, unsigned int in_num, unsigned int head) "dataplane %p out_num %u in_num %u head %u"
 
 =======
+>>>>>>> upstream/master
+=======
+# aio-posix.c
+run_poll_handlers_begin(void *ctx, int64_t max_ns) "ctx %p max_ns %"PRId64
+run_poll_handlers_end(void *ctx, bool progress) "ctx %p progress %d"
+poll_shrink(void *ctx, int64_t old, int64_t new) "ctx %p old %"PRId64" new %"PRId64
+poll_grow(void *ctx, int64_t old, int64_t new) "ctx %p old %"PRId64" new %"PRId64
+
 >>>>>>> upstream/master
 # thread-pool.c
 thread_pool_submit(void *pool, void *req, void *opaque) "pool %p req %p opaque %p"
