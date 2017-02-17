@@ -299,7 +299,11 @@ qemu-version.h: FORCE
 				printf '""\n'; \
 			fi; \
 		fi) > $@.tmp)
-	$(call quiet-command, cmp -s $@ $@.tmp || mv $@.tmp $@)
+	$(call quiet-command, if ! cmp -s $@ $@.tmp; then \
+	  mv $@.tmp $@; \
+	 else \
+	  rm $@.tmp; \
+	 fi)
 
 config-host.h: config-host.h-timestamp
 config-host.h-timestamp: config-host.mak
@@ -589,7 +593,7 @@ endif
 endif
 
 
-install: all $(if $(BUILD_DOCS),install-doc) \
+install: all $(if $(BUILD_DOCS),install-doc) $(BUILD_DIR)/trace-events-all \
 install-datadir install-localstatedir
 ifneq ($(TOOLS),)
 	$(call install-prog,$(subst qemu-ga,qemu-ga$(EXESUF),$(TOOLS)),$(DESTDIR)$(bindir))
