@@ -1026,6 +1026,9 @@ int monitor_set_cpu(int cpu_index)
 CPUState *mon_get_cpu(void)
 {
     if (!cur_mon->mon_cpu) {
+        if (!first_cpu) {
+            return NULL;
+        }
         monitor_set_cpu(first_cpu->cpu_index);
     }
     cpu_synchronize_state(cur_mon->mon_cpu);
@@ -1034,17 +1037,27 @@ CPUState *mon_get_cpu(void)
 
 CPUArchState *mon_get_cpu_env(void)
 {
-    return mon_get_cpu()->env_ptr;
+    CPUState *cs = mon_get_cpu();
+
+    return cs ? cs->env_ptr : NULL;
 }
 
 int monitor_get_cpu_index(void)
 {
-    return mon_get_cpu()->cpu_index;
+    CPUState *cs = mon_get_cpu();
+
+    return cs ? cs->cpu_index : UNASSIGNED_CPU_INDEX;
 }
 
 static void hmp_info_registers(Monitor *mon, const QDict *qdict)
 {
-    cpu_dump_state(mon_get_cpu(), (FILE *)mon, monitor_fprintf, CPU_DUMP_FPU);
+    CPUState *cs = mon_get_cpu();
+
+    if (!cs) {
+        monitor_printf(mon, "No CPU available\n");
+        return;
+    }
+    cpu_dump_state(cs, (FILE *)mon, monitor_fprintf, CPU_DUMP_FPU);
 }
 
 static void hmp_info_jit(Monitor *mon, const QDict *qdict)
@@ -1077,7 +1090,13 @@ static void hmp_info_history(Monitor *mon, const QDict *qdict)
 
 static void hmp_info_cpustats(Monitor *mon, const QDict *qdict)
 {
-    cpu_dump_statistics(mon_get_cpu(), (FILE *)mon, &monitor_fprintf, 0);
+    CPUState *cs = mon_get_cpu();
+
+    if (!cs) {
+        monitor_printf(mon, "No CPU available\n");
+        return;
+    }
+    cpu_dump_statistics(cs, (FILE *)mon, &monitor_fprintf, 0);
 }
 
 static void hmp_info_trace_events(Monitor *mon, const QDict *qdict)
@@ -1236,6 +1255,12 @@ static void memory_dump(Monitor *mon, int count, int format, int wsize,
     int l, line_size, i, max_digits, len;
     uint8_t buf[16];
     uint64_t v;
+    CPUState *cs = mon_get_cpu();
+
+    if (!cs && (format == 'i' || !is_physical)) {
+        monitor_printf(mon, "Can not dump without CPU\n");
+        return;
+    }
 
     if (format == 'i') {
         int flags = 0;
@@ -1265,7 +1290,7 @@ static void memory_dump(Monitor *mon, int count, int format, int wsize,
         flags = msr_le << 16;
         flags |= env->bfd_mach;
 #endif
-        monitor_disas(mon, mon_get_cpu(), addr, count, is_physical, flags);
+        monitor_disas(mon, cs, addr, count, is_physical, flags);
         return;
     }
 
@@ -1304,7 +1329,7 @@ static void memory_dump(Monitor *mon, int count, int format, int wsize,
         if (is_physical) {
             cpu_physical_memory_read(addr, buf, l);
         } else {
-            if (cpu_memory_rw_debug(mon_get_cpu(), addr, buf, l, 0) < 0) {
+            if (cpu_memory_rw_debug(cs, addr, buf, l, 0) < 0) {
                 monitor_printf(mon, " Cannot access memory\n");
                 break;
             }
@@ -2189,11 +2214,12 @@ expr_error(Monitor *mon, const char *fmt, ...)
 static int get_monitor_def(target_long *pval, const char *name)
 {
     const MonitorDef *md = target_monitor_defs();
+    CPUState *cs = mon_get_cpu();
     void *ptr;
     uint64_t tmp = 0;
     int ret;
 
-    if (md == NULL) {
+    if (cs == NULL || md == NULL) {
         return -1;
     }
 
@@ -2220,7 +2246,7 @@ static int get_monitor_def(target_long *pval, const char *name)
         }
     }
 
-    ret = target_get_monitor_def(mon_get_cpu(), name, &tmp);
+    ret = target_get_monitor_def(cs, name, &tmp);
     if (!ret) {
         *pval = (target_long) tmp;
     }
@@ -2773,7 +2799,8 @@ static QDict *monitor_parse_arguments(Monitor *mon,
             break;
         case 'o':
             {
-                int64_t val;
+                int ret;
+                uint64_t val;
                 char *end;
 
                 while (qemu_isspace(*p)) {
@@ -2785,8 +2812,8 @@ static QDict *monitor_parse_arguments(Monitor *mon,
                         break;
                     }
                 }
-                val = qemu_strtosz(p, &end);
-                if (val < 0) {
+                ret = qemu_strtosz_MiB(p, &end, &val);
+                if (ret < 0 || val > INT64_MAX) {
                     monitor_printf(mon, "invalid size\n");
                     goto fail;
                 }
@@ -3686,12 +3713,12 @@ static QDict *qmp_check_input_obj(QObject *input_obj, Error **errp)
     int has_exec_key = 0;
     QDict *input_dict;
 
-    if (qobject_type(input_obj) != QTYPE_QDICT) {
+    input_dict = qobject_to_qdict(input_obj);
+    if (!input_dict) {
         error_setg(errp, QERR_QMP_BAD_INPUT_OBJECT, "object");
         return NULL;
     }
 
-    input_dict = qobject_to_qdict(input_obj);
 
     for (ent = qdict_first(input_dict); ent; ent = qdict_next(input_dict, ent)){
         const char *arg_name = qdict_entry_key(ent);
@@ -3735,10 +3762,11 @@ static void handle_qmp_command(JSONMessageParser *parser, GQueue *tokens)
     Error *err = NULL;
 
     req = json_parser_parse_err(tokens, NULL, &err);
-    if (err || !req || qobject_type(req) != QTYPE_QDICT) {
-        if (!err) {
-            error_setg(&err, QERR_JSON_PARSING);
-        }
+    if (!req && !err) {
+        /* json_parser_parse_err() sucks: can fail without setting @err */
+        error_setg(&err, QERR_JSON_PARSING);
+    }
+    if (err) {
         goto err_out;
     }
 
@@ -4155,10 +4183,10 @@ HotpluggableCPUList *qmp_query_hotpluggable_cpus(Error **errp)
     MachineState *ms = MACHINE(qdev_get_machine());
     MachineClass *mc = MACHINE_GET_CLASS(ms);
 
-    if (!mc->query_hotpluggable_cpus) {
+    if (!mc->has_hotpluggable_cpus) {
         error_setg(errp, QERR_FEATURE_DISABLED, "query-hotpluggable-cpus");
         return NULL;
     }
 
-    return mc->query_hotpluggable_cpus(ms);
+    return machine_query_hotpluggable_cpus(ms);
 }

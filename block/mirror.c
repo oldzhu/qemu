@@ -69,6 +69,7 @@ typedef struct MirrorBlockJob {
     bool waiting_for_io;
     int target_cluster_sectors;
     int max_iov;
+    bool initial_zeroing_ongoing;
 } MirrorBlockJob;
 
 typedef struct MirrorOp {
@@ -117,9 +118,10 @@ static void mirror_iteration_done(MirrorOp *op, int ret)
         if (s->cow_bitmap) {
             bitmap_set(s->cow_bitmap, chunk_num, nb_chunks);
         }
-        s->common.offset += (uint64_t)op->nb_sectors * BDRV_SECTOR_SIZE;
+        if (!s->initial_zeroing_ongoing) {
+            s->common.offset += (uint64_t)op->nb_sectors * BDRV_SECTOR_SIZE;
+        }
     }
-
     qemu_iovec_destroy(&op->qiov);
     g_free(op);
 
@@ -132,6 +134,8 @@ static void mirror_write_complete(void *opaque, int ret)
 {
     MirrorOp *op = opaque;
     MirrorBlockJob *s = op->s;
+
+    aio_context_acquire(blk_get_aio_context(s->common.blk));
     if (ret < 0) {
         BlockErrorAction action;
 
@@ -142,12 +146,15 @@ static void mirror_write_complete(void *opaque, int ret)
         }
     }
     mirror_iteration_done(op, ret);
+    aio_context_release(blk_get_aio_context(s->common.blk));
 }
 
 static void mirror_read_complete(void *opaque, int ret)
 {
     MirrorOp *op = opaque;
     MirrorBlockJob *s = op->s;
+
+    aio_context_acquire(blk_get_aio_context(s->common.blk));
     if (ret < 0) {
         BlockErrorAction action;
 
@@ -158,10 +165,11 @@ static void mirror_read_complete(void *opaque, int ret)
         }
 
         mirror_iteration_done(op, ret);
-        return;
+    } else {
+        blk_aio_pwritev(s->target, op->sector_num * BDRV_SECTOR_SIZE, &op->qiov,
+                        0, mirror_write_complete, op);
     }
-    blk_aio_pwritev(s->target, op->sector_num * BDRV_SECTOR_SIZE, &op->qiov,
-                    0, mirror_write_complete, op);
+    aio_context_release(blk_get_aio_context(s->common.blk));
 }
 
 static inline void mirror_clip_sectors(MirrorBlockJob *s,
@@ -378,7 +386,7 @@ static uint64_t coroutine_fn mirror_iteration(MirrorBlockJob *s)
                             nb_chunks * sectors_per_chunk);
     bitmap_set(s->in_flight_bitmap, sector_num / sectors_per_chunk, nb_chunks);
     while (nb_chunks > 0 && sector_num < end) {
-        int ret;
+        int64_t ret;
         int io_sectors, io_sectors_acct;
         BlockDriverState *file;
         enum MirrorMethod {
@@ -566,6 +574,7 @@ static int coroutine_fn mirror_dirty_init(MirrorBlockJob *s)
             return 0;
         }
 
+        s->initial_zeroing_ongoing = true;
         for (sector_num = 0; sector_num < end; ) {
             int nb_sectors = MIN(end - sector_num,
                 QEMU_ALIGN_DOWN(INT_MAX, s->granularity) >> BDRV_SECTOR_BITS);
@@ -573,6 +582,7 @@ static int coroutine_fn mirror_dirty_init(MirrorBlockJob *s)
             mirror_throttle(s);
 
             if (block_job_is_cancelled(&s->common)) {
+                s->initial_zeroing_ongoing = false;
                 return 0;
             }
 
@@ -587,6 +597,7 @@ static int coroutine_fn mirror_dirty_init(MirrorBlockJob *s)
         }
 
         mirror_wait_for_all_io(s);
+        s->initial_zeroing_ongoing = false;
     }
 
     /* First part, loop on the sectors and initialize the dirty bitmap.  */
@@ -651,7 +662,28 @@ static void coroutine_fn mirror_run(void *opaque)
     if (s->bdev_length < 0) {
         ret = s->bdev_length;
         goto immediate_exit;
-    } else if (s->bdev_length == 0) {
+    }
+
+    /* Active commit must resize the base image if its size differs from the
+     * active layer. */
+    if (s->base == blk_bs(s->target)) {
+        int64_t base_length;
+
+        base_length = blk_getlength(s->target);
+        if (base_length < 0) {
+            ret = base_length;
+            goto immediate_exit;
+        }
+
+        if (s->bdev_length > base_length) {
+            ret = blk_truncate(s->target, s->bdev_length);
+            if (ret < 0) {
+                goto immediate_exit;
+            }
+        }
+    }
+
+    if (s->bdev_length == 0) {
         /* Report BLOCK_JOB_READY and wait for complete. */
         block_job_event_ready(&s->common);
         s->synced = true;
@@ -1056,40 +1088,13 @@ void commit_active_start(const char *job_id, BlockDriverState *bs,
                          BlockCompletionFunc *cb, void *opaque, Error **errp,
                          bool auto_complete)
 {
-    int64_t length, base_length;
     int orig_base_flags;
-    int ret;
     Error *local_err = NULL;
 
     orig_base_flags = bdrv_get_flags(base);
 
     if (bdrv_reopen(base, bs->open_flags, errp)) {
         return;
-    }
-
-    length = bdrv_getlength(bs);
-    if (length < 0) {
-        error_setg_errno(errp, -length,
-                         "Unable to determine length of %s", bs->filename);
-        goto error_restore_flags;
-    }
-
-    base_length = bdrv_getlength(base);
-    if (base_length < 0) {
-        error_setg_errno(errp, -base_length,
-                         "Unable to determine length of %s", base->filename);
-        goto error_restore_flags;
-    }
-
-    if (length > base_length) {
-        ret = bdrv_truncate(base, length);
-        if (ret < 0) {
-            error_setg_errno(errp, -ret,
-                            "Top image %s is larger than base image %s, and "
-                             "resize of base image failed",
-                             bs->filename, base->filename);
-            goto error_restore_flags;
-        }
     }
 
     mirror_start_job(job_id, bs, creation_flags, base, NULL, speed, 0, 0,

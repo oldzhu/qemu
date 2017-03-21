@@ -1014,8 +1014,14 @@ void hmp_memsave(Monitor *mon, const QDict *qdict)
     const char *filename = qdict_get_str(qdict, "filename");
     uint64_t addr = qdict_get_int(qdict, "val");
     Error *err = NULL;
+    int cpu_index = monitor_get_cpu_index();
 
-    qmp_memsave(addr, size, filename, true, monitor_get_cpu_index(), &err);
+    if (cpu_index < 0) {
+        monitor_printf(mon, "No CPU available\n");
+        return;
+    }
+
+    qmp_memsave(addr, size, filename, true, cpu_index, &err);
     hmp_handle_error(mon, &err);
 }
 
@@ -1338,12 +1344,11 @@ void hmp_migrate_set_parameter(Monitor *mon, const QDict *qdict)
 {
     const char *param = qdict_get_str(qdict, "parameter");
     const char *valuestr = qdict_get_str(qdict, "value");
-    int64_t valuebw = 0;
+    uint64_t valuebw = 0;
     long valueint = 0;
-    char *endp;
     Error *err = NULL;
     bool use_int_value = false;
-    int i;
+    int i, ret;
 
     for (i = 0; i < MIGRATION_PARAMETER__MAX; i++) {
         if (strcmp(param, MigrationParameter_lookup[i]) == 0) {
@@ -1379,9 +1384,9 @@ void hmp_migrate_set_parameter(Monitor *mon, const QDict *qdict)
                 break;
             case MIGRATION_PARAMETER_MAX_BANDWIDTH:
                 p.has_max_bandwidth = true;
-                valuebw = qemu_strtosz(valuestr, &endp);
-                if (valuebw < 0 || (size_t)valuebw != valuebw
-                    || *endp != '\0') {
+                ret = qemu_strtosz_MiB(valuestr, NULL, &valuebw);
+                if (ret < 0 || valuebw > INT64_MAX
+                    || (size_t)valuebw != valuebw) {
                     error_setg(&err, "Invalid size %s", valuestr);
                     goto cleanup;
                 }
@@ -1552,6 +1557,7 @@ void hmp_block_set_io_throttle(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;
     BlockIOThrottle throttle = {
+        .has_device = true,
         .device = (char *) qdict_get_str(qdict, "device"),
         .bps = qdict_get_int(qdict, "bps"),
         .bps_rd = qdict_get_int(qdict, "bps_rd"),
@@ -2148,10 +2154,15 @@ void hmp_info_iothreads(Monitor *mon, const QDict *qdict)
 {
     IOThreadInfoList *info_list = qmp_query_iothreads(NULL);
     IOThreadInfoList *info;
+    IOThreadInfo *value;
 
     for (info = info_list; info; info = info->next) {
-        monitor_printf(mon, "%s: thread_id=%" PRId64 "\n",
-                       info->value->id, info->value->thread_id);
+        value = info->value;
+        monitor_printf(mon, "%s:\n", value->id);
+        monitor_printf(mon, "  thread_id=%" PRId64 "\n", value->thread_id);
+        monitor_printf(mon, "  poll-max-ns=%" PRId64 "\n", value->poll_max_ns);
+        monitor_printf(mon, "  poll-grow=%" PRId64 "\n", value->poll_grow);
+        monitor_printf(mon, "  poll-shrink=%" PRId64 "\n", value->poll_shrink);
     }
 
     qapi_free_IOThreadInfoList(info_list);

@@ -52,6 +52,7 @@
 #include "sysemu/arch_init.h"
 #include "qemu/cutils.h"
 #include "qemu/help_option.h"
+#include "qemu/throttle-options.h"
 
 static QTAILQ_HEAD(, BlockDriverState) monitor_bdrv_states =
     QTAILQ_HEAD_INITIALIZER(monitor_bdrv_states);
@@ -227,27 +228,30 @@ DriveInfo *drive_get(BlockInterfaceType type, int bus, int unit)
     return NULL;
 }
 
-bool drive_check_orphaned(void)
+void drive_check_orphaned(void)
 {
     BlockBackend *blk;
     DriveInfo *dinfo;
-    bool rs = false;
+    Location loc;
+    bool orphans = false;
 
     for (blk = blk_next(NULL); blk; blk = blk_next(blk)) {
         dinfo = blk_legacy_dinfo(blk);
-        /* If dinfo->bdrv->dev is NULL, it has no device attached. */
-        /* Unless this is a default drive, this may be an oversight. */
         if (!blk_get_attached_dev(blk) && !dinfo->is_default &&
             dinfo->type != IF_NONE) {
-            fprintf(stderr, "Warning: Orphaned drive without device: "
-                    "id=%s,file=%s,if=%s,bus=%d,unit=%d\n",
-                    blk_name(blk), blk_bs(blk) ? blk_bs(blk)->filename : "",
-                    if_name[dinfo->type], dinfo->bus, dinfo->unit);
-            rs = true;
+            loc_push_none(&loc);
+            qemu_opts_loc_restore(dinfo->opts);
+            error_report("machine type does not support"
+                         " if=%s,bus=%d,unit=%d",
+                         if_name[dinfo->type], dinfo->bus, dinfo->unit);
+            loc_pop(&loc);
+            orphans = true;
         }
     }
 
-    return rs;
+    if (orphans) {
+        exit(1);
+    }
 }
 
 DriveInfo *drive_get_by_index(BlockInterfaceType type, int index)
@@ -2855,6 +2859,7 @@ void qmp_block_resize(bool has_device, const char *device,
                       int64_t size, Error **errp)
 {
     Error *local_err = NULL;
+    BlockBackend *blk = NULL;
     BlockDriverState *bs;
     AioContext *aio_context;
     int ret;
@@ -2885,10 +2890,13 @@ void qmp_block_resize(bool has_device, const char *device,
         goto out;
     }
 
+    blk = blk_new();
+    blk_insert_bs(blk, bs);
+
     /* complete all in-flight operations before resizing the device */
     bdrv_drain_all();
 
-    ret = bdrv_truncate(bs, size);
+    ret = blk_truncate(blk, size);
     switch (ret) {
     case 0:
         break;
@@ -2910,6 +2918,7 @@ void qmp_block_resize(bool has_device, const char *device,
     }
 
 out:
+    blk_unref(blk);
     aio_context_release(aio_context);
 }
 
@@ -3999,83 +4008,11 @@ QemuOptsList qemu_common_drive_opts = {
             .name = BDRV_OPT_READ_ONLY,
             .type = QEMU_OPT_BOOL,
             .help = "open drive file as read-only",
-        },{
-            .name = "throttling.iops-total",
-            .type = QEMU_OPT_NUMBER,
-            .help = "limit total I/O operations per second",
-        },{
-            .name = "throttling.iops-read",
-            .type = QEMU_OPT_NUMBER,
-            .help = "limit read operations per second",
-        },{
-            .name = "throttling.iops-write",
-            .type = QEMU_OPT_NUMBER,
-            .help = "limit write operations per second",
-        },{
-            .name = "throttling.bps-total",
-            .type = QEMU_OPT_NUMBER,
-            .help = "limit total bytes per second",
-        },{
-            .name = "throttling.bps-read",
-            .type = QEMU_OPT_NUMBER,
-            .help = "limit read bytes per second",
-        },{
-            .name = "throttling.bps-write",
-            .type = QEMU_OPT_NUMBER,
-            .help = "limit write bytes per second",
-        },{
-            .name = "throttling.iops-total-max",
-            .type = QEMU_OPT_NUMBER,
-            .help = "I/O operations burst",
-        },{
-            .name = "throttling.iops-read-max",
-            .type = QEMU_OPT_NUMBER,
-            .help = "I/O operations read burst",
-        },{
-            .name = "throttling.iops-write-max",
-            .type = QEMU_OPT_NUMBER,
-            .help = "I/O operations write burst",
-        },{
-            .name = "throttling.bps-total-max",
-            .type = QEMU_OPT_NUMBER,
-            .help = "total bytes burst",
-        },{
-            .name = "throttling.bps-read-max",
-            .type = QEMU_OPT_NUMBER,
-            .help = "total bytes read burst",
-        },{
-            .name = "throttling.bps-write-max",
-            .type = QEMU_OPT_NUMBER,
-            .help = "total bytes write burst",
-        },{
-            .name = "throttling.iops-total-max-length",
-            .type = QEMU_OPT_NUMBER,
-            .help = "length of the iops-total-max burst period, in seconds",
-        },{
-            .name = "throttling.iops-read-max-length",
-            .type = QEMU_OPT_NUMBER,
-            .help = "length of the iops-read-max burst period, in seconds",
-        },{
-            .name = "throttling.iops-write-max-length",
-            .type = QEMU_OPT_NUMBER,
-            .help = "length of the iops-write-max burst period, in seconds",
-        },{
-            .name = "throttling.bps-total-max-length",
-            .type = QEMU_OPT_NUMBER,
-            .help = "length of the bps-total-max burst period, in seconds",
-        },{
-            .name = "throttling.bps-read-max-length",
-            .type = QEMU_OPT_NUMBER,
-            .help = "length of the bps-read-max burst period, in seconds",
-        },{
-            .name = "throttling.bps-write-max-length",
-            .type = QEMU_OPT_NUMBER,
-            .help = "length of the bps-write-max burst period, in seconds",
-        },{
-            .name = "throttling.iops-size",
-            .type = QEMU_OPT_NUMBER,
-            .help = "when limiting by iops max size of an I/O in bytes",
-        },{
+        },
+
+        THROTTLE_OPTS,
+
+        {
             .name = "throttling.group",
             .type = QEMU_OPT_STRING,
             .help = "name of the block throttling group",
