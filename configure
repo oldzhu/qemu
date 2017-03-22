@@ -301,7 +301,6 @@ glusterfs=""
 glusterfs_xlator_opt="no"
 glusterfs_discard="no"
 glusterfs_zerofill="no"
-archipelago="no"
 gtk=""
 gtkabi=""
 gtk_gl="no"
@@ -554,12 +553,6 @@ fi
 HOST_VARIANT_DIR=""
 
 case $targetos in
-CYGWIN*)
-  mingw32="yes"
-  QEMU_CFLAGS="-mno-cygwin $QEMU_CFLAGS"
-  audio_possible_drivers="sdl"
-  audio_drv_list="sdl"
-;;
 MINGW32*)
   mingw32="yes"
   hax="yes"
@@ -1101,10 +1094,6 @@ for opt do
   ;;
   --enable-glusterfs) glusterfs="yes"
   ;;
-  --disable-archipelago) archipelago="no"
-  ;;
-  --enable-archipelago) archipelago="yes"
-  ;;
   --disable-virtio-blk-data-plane|--enable-virtio-blk-data-plane)
       echo "$0: $opt is obsolete, virtio-blk data-plane is always on" >&2
   ;;
@@ -1335,6 +1324,12 @@ Advanced options (experts only):
   --with-vss-sdk=SDK-path  enable Windows VSS support in QEMU Guest Agent
   --with-win-sdk=SDK-path  path to Windows Platform SDK (to build VSS .tlb)
   --tls-priority           default TLS protocol/cipher priority string
+  --enable-gprof           QEMU profiling with gprof
+  --enable-profiler        profiler support
+  --enable-xen-pv-domain-build
+                           xen pv domain builder
+  --enable-debug-stack-usage
+                           track the maximum stack usage of stacks created by qemu_alloc_stack
 
 Optional features, enabled with --enable-FEATURE and
 disabled with --disable-FEATURE, default is enabled if available:
@@ -1396,13 +1391,18 @@ disabled with --disable-FEATURE, default is enabled if available:
   seccomp         seccomp support
   coroutine-pool  coroutine freelist (better performance)
   glusterfs       GlusterFS backend
-  archipelago     Archipelago backend
   tpm             TPM support
   libssh2         ssh block device support
   numa            libnuma support
   tcmalloc        tcmalloc support
   jemalloc        jemalloc support
   replication     replication support
+  vhost-vsock     virtio sockets device support
+  opengl          opengl support
+  virglrenderer   virgl rendering support
+  xfsctl          xfsctl support
+  qom-cast-debug  cast debugging support
+  tools           build qemu-io, qemu-nbd and qemu-image tools
 
 NOTE: The object files are built at the place where configure is launched
 EOF
@@ -2893,6 +2893,12 @@ for drv in $audio_drv_list; do
     audio_pt_int="yes"
     ;;
 
+    sdl)
+    if test "$sdl" = "no"; then
+        error_exit "sdl not found or disabled, can not use sdl audio driver"
+    fi
+    ;;
+
     coreaudio)
       libs_softmmu="-framework CoreAudio $libs_softmmu"
     ;;
@@ -2906,8 +2912,8 @@ for drv in $audio_drv_list; do
       libs_softmmu="$oss_lib $libs_softmmu"
     ;;
 
-    sdl|wav)
-    # XXX: Probes for CoreAudio, DirectSound, SDL(?)
+    wav)
+    # XXX: Probes for CoreAudio, DirectSound
     ;;
 
     *)
@@ -3469,37 +3475,6 @@ EOF
   if compile_prog "" "" ; then
     opengl_dmabuf=yes
   fi
-fi
-
-##########################################
-# archipelago probe
-if test "$archipelago" != "no" ; then
-    cat > $TMPC <<EOF
-#include <stdio.h>
-#include <xseg/xseg.h>
-#include <xseg/protocol.h>
-int main(void) {
-    xseg_initialize();
-    return 0;
-}
-EOF
-    archipelago_libs=-lxseg
-    if compile_prog "" "$archipelago_libs"; then
-        archipelago="yes"
-        libs_tools="$archipelago_libs $libs_tools"
-        libs_softmmu="$archipelago_libs $libs_softmmu"
-
-	echo "WARNING: Please check the licenses of QEMU and libxseg carefully."
-	echo "GPLv3 versions of libxseg may not be compatible with QEMU's"
-	echo "license and therefore prevent redistribution."
-	echo
-	echo "To disable Archipelago, use --disable-archipelago"
-    else
-      if test "$archipelago" = "yes" ; then
-        feature_not_found "Archipelago backend support" "Install libxseg devel"
-      fi
-      archipelago="no"
-    fi
 fi
 
 
@@ -4753,6 +4728,20 @@ if test "$modules" = "yes" && test "$LD_REL_FLAGS" = ""; then
 fi
 
 ##########################################
+# check for sysmacros.h
+
+have_sysmacros=no
+cat > $TMPC << EOF
+#include <sys/sysmacros.h>
+int main(void) {
+    return makedev(0, 0);
+}
+EOF
+if compile_prog "" "" ; then
+    have_sysmacros=yes
+fi
+
+##########################################
 # End of CC checks
 # After here, no more $cc or $ld runs
 
@@ -5107,7 +5096,6 @@ echo "coroutine backend $coroutine"
 echo "coroutine pool    $coroutine_pool"
 echo "debug stack usage $debug_stack_usage"
 echo "GlusterFS support $glusterfs"
-echo "Archipelago support $archipelago"
 echo "gcov              $gcov_tool"
 echo "gcov enabled      $gcov"
 echo "TPM support       $tpm"
@@ -5648,11 +5636,6 @@ if test "$glusterfs_zerofill" = "yes" ; then
   echo "CONFIG_GLUSTERFS_ZEROFILL=y" >> $config_host_mak
 fi
 
-if test "$archipelago" = "yes" ; then
-  echo "CONFIG_ARCHIPELAGO=m" >> $config_host_mak
-  echo "ARCHIPELAGO_LIBS=$archipelago_libs" >> $config_host_mak
-fi
-
 if test "$libssh2" = "yes" ; then
   echo "CONFIG_LIBSSH2=m" >> $config_host_mak
   echo "LIBSSH2_CFLAGS=$libssh2_cflags" >> $config_host_mak
@@ -5725,6 +5708,10 @@ fi
 
 if test "$have_af_vsock" = "yes" ; then
   echo "CONFIG_AF_VSOCK=y" >> $config_host_mak
+fi
+
+if test "$have_sysmacros" = "yes" ; then
+  echo "CONFIG_SYSMACROS=y" >> $config_host_mak
 fi
 
 # Hold two types of flag:

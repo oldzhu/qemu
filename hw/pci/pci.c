@@ -64,6 +64,8 @@ static Property pci_props[] = {
                     QEMU_PCI_CAP_SERR_BITNR, true),
     DEFINE_PROP_BIT("x-pcie-lnksta-dllla", PCIDevice, cap_present,
                     QEMU_PCIE_LNKSTA_DLLLA_BITNR, true),
+    DEFINE_PROP_BIT("x-pcie-extcap-init", PCIDevice, cap_present,
+                    QEMU_PCIE_EXTCAP_INIT_BITNR, true),
     DEFINE_PROP_END_OF_LIST()
 };
 
@@ -88,8 +90,8 @@ static void pci_init_bus_master(PCIDevice *pci_dev)
                              OBJECT(pci_dev), "bus master",
                              dma_as->root, 0, memory_region_size(dma_as->root));
     memory_region_set_enabled(&pci_dev->bus_master_enable_region, false);
-    address_space_init(&pci_dev->bus_master_as,
-                       &pci_dev->bus_master_enable_region, pci_dev->name);
+    memory_region_add_subregion(&pci_dev->bus_master_container_region, 0,
+                                &pci_dev->bus_master_enable_region);
 }
 
 static void pcibus_machine_done(Notifier *notifier, void *data)
@@ -1006,6 +1008,11 @@ static PCIDevice *do_pci_register_device(PCIDevice *pci_dev, PCIBus *bus,
 =======
 >>>>>>> upstream/master
 
+    memory_region_init(&pci_dev->bus_master_container_region, OBJECT(pci_dev),
+                       "bus master container", UINT64_MAX);
+    address_space_init(&pci_dev->bus_master_as,
+                       &pci_dev->bus_master_container_region, pci_dev->name);
+
     if (qdev_hotplug) {
         pci_init_bus_master(pci_dev);
     }
@@ -1540,6 +1547,34 @@ static const pci_class_desc pci_class_descriptions[] =
     { 0x0c05, "SMBus"},
     { 0, NULL}
 };
+
+static void pci_for_each_device_under_bus_reverse(PCIBus *bus,
+                                                  void (*fn)(PCIBus *b,
+                                                             PCIDevice *d,
+                                                             void *opaque),
+                                                  void *opaque)
+{
+    PCIDevice *d;
+    int devfn;
+
+    for (devfn = 0; devfn < ARRAY_SIZE(bus->devices); devfn++) {
+        d = bus->devices[ARRAY_SIZE(bus->devices) - 1 - devfn];
+        if (d) {
+            fn(bus, d, opaque);
+        }
+    }
+}
+
+void pci_for_each_device_reverse(PCIBus *bus, int bus_num,
+                         void (*fn)(PCIBus *b, PCIDevice *d, void *opaque),
+                         void *opaque)
+{
+    bus = pci_find_bus_nr(bus, bus_num);
+
+    if (bus) {
+        pci_for_each_device_under_bus_reverse(bus, fn, opaque);
+    }
+}
 
 static void pci_for_each_device_under_bus(PCIBus *bus,
                                           void (*fn)(PCIBus *b, PCIDevice *d,

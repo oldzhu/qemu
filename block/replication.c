@@ -155,6 +155,18 @@ static void replication_close(BlockDriverState *bs)
     replication_remove(s->rs);
 }
 
+static void replication_child_perm(BlockDriverState *bs, BdrvChild *c,
+                                   const BdrvChildRole *role,
+                                   uint64_t perm, uint64_t shared,
+                                   uint64_t *nperm, uint64_t *nshared)
+{
+    *nperm = *nshared = BLK_PERM_CONSISTENT_READ \
+                        | BLK_PERM_WRITE \
+                        | BLK_PERM_WRITE_UNCHANGED;
+
+    return;
+}
+
 static int64_t replication_getlength(BlockDriverState *bs)
 {
     return bdrv_getlength(bs->file->bs);
@@ -644,7 +656,7 @@ static void replication_stop(ReplicationState *rs, bool failover, Error **errp)
         s->replication_state = BLOCK_REPLICATION_FAILOVER;
         commit_active_start(NULL, s->active_disk->bs, s->secondary_disk->bs,
                             BLOCK_JOB_INTERNAL, 0, BLOCKDEV_ON_ERROR_REPORT,
-                            replication_done, bs, errp, true);
+                            NULL, replication_done, bs, errp, true);
         break;
     default:
         aio_context_release(aio_context);
@@ -660,6 +672,7 @@ BlockDriver bdrv_replication = {
 
     .bdrv_open                  = replication_open,
     .bdrv_close                 = replication_close,
+    .bdrv_child_perm            = replication_child_perm,
 
     .bdrv_getlength             = replication_getlength,
     .bdrv_co_readv              = replication_co_readv,

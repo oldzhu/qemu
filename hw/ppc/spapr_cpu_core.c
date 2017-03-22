@@ -13,10 +13,12 @@
 #include "hw/boards.h"
 #include "qapi/error.h"
 #include "sysemu/cpus.h"
+#include "sysemu/kvm.h"
 #include "target/ppc/kvm_ppc.h"
 #include "hw/ppc/ppc.h"
 #include "target/ppc/mmu-hash64.h"
 #include "sysemu/numa.h"
+#include "qemu/error-report.h"
 
 static void spapr_cpu_reset(void *opaque)
 {
@@ -34,15 +36,26 @@ static void spapr_cpu_reset(void *opaque)
 
     env->spr[SPR_HIOR] = 0;
 
-    ppc_hash64_set_external_hpt(cpu, spapr->htab, spapr->htab_shift,
-                                &error_fatal);
+    /*
+     * This is a hack for the benefit of KVM PR - it abuses the SDR1
+     * slot in kvm_sregs to communicate the userspace address of the
+     * HPT
+     */
+    if (kvm_enabled()) {
+        env->spr[SPR_SDR1] = (target_ulong)(uintptr_t)spapr->htab
+            | (spapr->htab_shift - 18);
+        if (kvmppc_put_books_sregs(cpu) < 0) {
+            error_report("Unable to update SDR1 in KVM");
+            exit(1);
+        }
+    }
 }
 
 static void spapr_cpu_destroy(PowerPCCPU *cpu)
 {
     sPAPRMachineState *spapr = SPAPR_MACHINE(qdev_get_machine());
 
-    xics_cpu_destroy(spapr->xics, cpu);
+    xics_cpu_destroy(XICS_FABRIC(spapr), cpu);
     qemu_unregister_reset(spapr_cpu_reset, cpu);
 }
 
@@ -50,15 +63,12 @@ static void spapr_cpu_init(sPAPRMachineState *spapr, PowerPCCPU *cpu,
                            Error **errp)
 {
     CPUPPCState *env = &cpu->env;
-    CPUState *cs = CPU(cpu);
-    int i;
 
     /* Set time-base frequency to 512 MHz */
     cpu_ppc_tb_init(env, SPAPR_TIMEBASE_FREQ);
 
     /* Enable PAPR mode in TCG or KVM */
-    cpu_ppc_set_vhyp(cpu, PPC_VIRTUAL_HYPERVISOR(spapr));
-    cpu_ppc_set_papr(cpu);
+    cpu_ppc_set_papr(cpu, PPC_VIRTUAL_HYPERVISOR(spapr));
 
     if (cpu->max_compat) {
         Error *local_err = NULL;
@@ -70,13 +80,7 @@ static void spapr_cpu_init(sPAPRMachineState *spapr, PowerPCCPU *cpu,
         }
     }
 
-    /* Set NUMA node for the added CPUs  */
-    i = numa_get_node_for_cpu(cs->cpu_index);
-    if (i < nb_numa_nodes) {
-            cs->numa_node = i;
-    }
-
-    xics_cpu_setup(spapr->xics, cpu);
+    xics_cpu_setup(XICS_FABRIC(spapr), cpu);
 
     qemu_register_reset(spapr_cpu_reset, cpu);
     spapr_cpu_reset(cpu);
@@ -159,11 +163,13 @@ static void spapr_cpu_core_realize(DeviceState *dev, Error **errp)
     const char *typename = object_class_get_name(scc->cpu_class);
     size_t size = object_type_get_instance_size(typename);
     Error *local_err = NULL;
+    int core_node_id = numa_get_node_for_cpu(cc->core_id);;
     void *obj;
     int i, j;
 
     sc->threads = g_malloc0(size * cc->nr_threads);
     for (i = 0; i < cc->nr_threads; i++) {
+        int node_id;
         char id[32];
         CPUState *cs;
 
@@ -172,6 +178,19 @@ static void spapr_cpu_core_realize(DeviceState *dev, Error **errp)
         object_initialize(obj, size, typename);
         cs = CPU(obj);
         cs->cpu_index = cc->core_id + i;
+
+        /* Set NUMA node for the added CPUs  */
+        node_id = numa_get_node_for_cpu(cs->cpu_index);
+        if (node_id != core_node_id) {
+            error_setg(&local_err, "Invalid node-id=%d of thread[cpu-index: %d]"
+                " on CPU[core-id: %d, node-id: %d], node-id must be the same",
+                 node_id, cs->cpu_index, cc->core_id, core_node_id);
+            goto err;
+        }
+        if (node_id < nb_numa_nodes) {
+            cs->numa_node = node_id;
+        }
+
         snprintf(id, sizeof(id), "thread[%d]", i);
         object_property_add_child(OBJECT(sc), id, obj, &local_err);
         if (local_err) {
@@ -226,6 +245,9 @@ static const char *spapr_core_models[] = {
 
     /* POWER8NVL */
     "POWER8NVL_v1.0",
+
+    /* POWER9 */
+    "POWER9_v1.0",
 };
 
 void spapr_cpu_core_class_init(ObjectClass *oc, void *data)

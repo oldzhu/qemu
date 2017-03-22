@@ -93,8 +93,7 @@ static void test_find_unknown_opts(void)
     /* should not return anything, we don't have an "unknown" option */
     list = qemu_find_opts_err("unknown", &err);
     g_assert(list == NULL);
-    g_assert(err);
-    error_free(err);
+    error_free_or_abort(&err);
 }
 
 static void test_qemu_find_opts(void)
@@ -531,6 +530,11 @@ static void test_opts_parse(void)
     g_assert_cmpstr(qemu_opt_get(opts, "an"), ==, "on");
     g_assert_cmpstr(qemu_opt_get(opts, "aus"), ==, "off");
     g_assert_cmpstr(qemu_opt_get(opts, "noaus"), ==, "");
+
+    /* Implied value, negated empty key */
+    opts = qemu_opts_parse(&opts_list_03, "no", false, &error_abort);
+    g_assert_cmpuint(opts_count(opts), ==, 1);
+    g_assert_cmpstr(qemu_opt_get(opts, ""), ==, "off");
 
     /* Implied key */
     opts = qemu_opts_parse(&opts_list_03, "an,noaus,noaus=", true,
