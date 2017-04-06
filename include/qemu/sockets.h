@@ -126,4 +126,15 @@ void qapi_copy_SocketAddress(SocketAddress **p_dest,
  */
 char *socket_address_to_string(struct SocketAddress *addr, Error **errp);
 
+/**
+ * socket_address_crumple:
+ * @addr_flat: the socket address to crumple
+ *
+ * Convert SocketAddressFlat to SocketAddress.  Caller is responsible
+ * for freeing with qapi_free_SocketAddress().
+ *
+ * Returns: the argument converted to SocketAddress.
+ */
+SocketAddress *socket_address_crumple(SocketAddressFlat *addr_flat);
+
 #endif /* QEMU_SOCKETS_H */
