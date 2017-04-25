@@ -403,12 +403,13 @@ void bdrv_drain_all(void);
 
 #define BDRV_POLL_WHILE(bs, cond) ({                       \
     bool waited_ = false;                                  \
+    bool busy_ = true;                                     \
     BlockDriverState *bs_ = (bs);                          \
     AioContext *ctx_ = bdrv_get_aio_context(bs_);          \
     if (aio_context_in_iothread(ctx_)) {                   \
-        while ((cond)) {                                   \
-            aio_poll(ctx_, true);                          \
-            waited_ = true;                                \
+        while ((cond) || busy_) {                          \
+            busy_ = aio_poll(ctx_, (cond));                \
+            waited_ |= !!(cond) | busy_;                   \
         }                                                  \
     } else {                                               \
         assert(qemu_get_current_aio_context() ==           \
@@ -420,11 +421,16 @@ void bdrv_drain_all(void);
          */                                                \
         assert(!bs_->wakeup);                              \
         bs_->wakeup = true;                                \
-        while ((cond)) {                                   \
-            aio_context_release(ctx_);                     \
-            aio_poll(qemu_get_aio_context(), true);        \
-            aio_context_acquire(ctx_);                     \
-            waited_ = true;                                \
+        while (busy_) {                                    \
+            if ((cond)) {                                  \
+                waited_ = busy_ = true;                    \
+                aio_context_release(ctx_);                 \
+                aio_poll(qemu_get_aio_context(), true);    \
+                aio_context_acquire(ctx_);                 \
+            } else {                                       \
+                busy_ = aio_poll(ctx_, false);             \
+                waited_ |= busy_;                          \
+            }                                              \
         }                                                  \
         bs_->wakeup = false;                               \
     }                                                      \
@@ -525,7 +531,7 @@ int bdrv_load_vmstate(BlockDriverState *bs, uint8_t *buf,
 void bdrv_img_create(const char *filename, const char *fmt,
                      const char *base_filename, const char *base_fmt,
                      char *options, uint64_t img_size, int flags,
-                     Error **errp, bool quiet);
+                     bool quiet, Error **errp);
 
 /* Returns the alignment in bytes that is required so that no bounce buffer
  * is required throughout the stack */
