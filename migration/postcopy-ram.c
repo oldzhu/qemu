@@ -20,7 +20,7 @@
 
 #include "qemu-common.h"
 #include "migration/migration.h"
-#include "migration/postcopy-ram.h"
+#include "postcopy-ram.h"
 #include "sysemu/sysemu.h"
 #include "sysemu/balloon.h"
 #include "qemu/error-report.h"
@@ -33,7 +33,6 @@
 
 struct PostcopyDiscardState {
     const char *ramblock_name;
-    uint64_t offset; /* Bitmap entry for the 1st bit of this RAMBlock */
     uint16_t cur_entry;
     /*
      * Start and length of a discard range (bytes)
@@ -717,14 +716,12 @@ void *postcopy_get_tmp_page(MigrationIncomingState *mis)
  * returns: a new PDS.
  */
 PostcopyDiscardState *postcopy_discard_send_init(MigrationState *ms,
-                                                 unsigned long offset,
                                                  const char *name)
 {
     PostcopyDiscardState *res = g_malloc0(sizeof(PostcopyDiscardState));
 
     if (res) {
         res->ramblock_name = name;
-        res->offset = offset;
     }
 
     return res;
@@ -745,7 +742,7 @@ void postcopy_discard_send_range(MigrationState *ms, PostcopyDiscardState *pds,
 {
     size_t tp_size = qemu_target_page_size();
     /* Convert to byte offsets within the RAM block */
-    pds->start_list[pds->cur_entry] = (start - pds->offset) * tp_size;
+    pds->start_list[pds->cur_entry] = start  * tp_size;
     pds->length_list[pds->cur_entry] = length * tp_size;
     trace_postcopy_discard_send_range(pds->ramblock_name, start, length);
     pds->cur_entry++;
@@ -786,4 +783,22 @@ void postcopy_discard_send_finish(MigrationState *ms, PostcopyDiscardState *pds)
                                        pds->nsentcmds);
 
     g_free(pds);
+}
+
+/*
+ * Current state of incoming postcopy; note this is not part of
+ * MigrationIncomingState since it's state is used during cleanup
+ * at the end as MIS is being freed.
+ */
+static PostcopyState incoming_postcopy_state;
+
+PostcopyState  postcopy_state_get(void)
+{
+    return atomic_mb_read(&incoming_postcopy_state);
+}
+
+/* Set the state and return the old state */
+PostcopyState postcopy_state_set(PostcopyState new_state)
+{
+    return atomic_xchg(&incoming_postcopy_state, new_state);
 }

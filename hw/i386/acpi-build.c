@@ -272,7 +272,7 @@ build_facs(GArray *table_data, BIOSLinker *linker)
 }
 
 /* Load chipset information in FADT */
-static void fadt_setup(AcpiFadtDescriptorRev1 *fadt, AcpiPmInfo *pm)
+static void fadt_setup(AcpiFadtDescriptorRev3 *fadt, AcpiPmInfo *pm)
 {
     fadt->model = 1;
     fadt->reserved1 = 0;
@@ -304,6 +304,31 @@ static void fadt_setup(AcpiFadtDescriptorRev1 *fadt, AcpiPmInfo *pm)
         fadt->flags |= cpu_to_le32(1 << ACPI_FADT_F_FORCE_APIC_CLUSTER_MODEL);
     }
     fadt->century = RTC_CENTURY;
+
+    fadt->flags |= cpu_to_le32(1 << ACPI_FADT_F_RESET_REG_SUP);
+    fadt->reset_value = 0xf;
+    fadt->reset_register.space_id = AML_SYSTEM_IO;
+    fadt->reset_register.bit_width = 8;
+    fadt->reset_register.address = cpu_to_le64(ICH9_RST_CNT_IOPORT);
+    /* The above need not be conditional on machine type because the reset port
+     * happens to be the same on PIIX (pc) and ICH9 (q35). */
+    QEMU_BUILD_BUG_ON(ICH9_RST_CNT_IOPORT != RCR_IOPORT);
+
+    fadt->xpm1a_event_block.space_id = AML_SYSTEM_IO;
+    fadt->xpm1a_event_block.bit_width = fadt->pm1_evt_len * 8;
+    fadt->xpm1a_event_block.address = cpu_to_le64(pm->io_base);
+
+    fadt->xpm1a_control_block.space_id = AML_SYSTEM_IO;
+    fadt->xpm1a_control_block.bit_width = fadt->pm1_cnt_len * 8;
+    fadt->xpm1a_control_block.address = cpu_to_le64(pm->io_base + 0x4);
+
+    fadt->xpm_timer_block.space_id = AML_SYSTEM_IO;
+    fadt->xpm_timer_block.bit_width = fadt->pm_tmr_len * 8;
+    fadt->xpm_timer_block.address = cpu_to_le64(pm->io_base + 0x8);
+
+    fadt->xgpe0_block.space_id = AML_SYSTEM_IO;
+    fadt->xgpe0_block.bit_width = pm->gpe0_blk_len * 8;
+    fadt->xgpe0_block.address = cpu_to_le64(pm->gpe0_blk);
 }
 
 
@@ -313,9 +338,10 @@ build_fadt(GArray *table_data, BIOSLinker *linker, AcpiPmInfo *pm,
            unsigned facs_tbl_offset, unsigned dsdt_tbl_offset,
            const char *oem_id, const char *oem_table_id)
 {
-    AcpiFadtDescriptorRev1 *fadt = acpi_data_push(table_data, sizeof(*fadt));
+    AcpiFadtDescriptorRev3 *fadt = acpi_data_push(table_data, sizeof(*fadt));
     unsigned fw_ctrl_offset = (char *)&fadt->firmware_ctrl - table_data->data;
     unsigned dsdt_entry_offset = (char *)&fadt->dsdt - table_data->data;
+    unsigned xdsdt_entry_offset = (char *)&fadt->x_dsdt - table_data->data;
 
     /* FACS address to be filled by Guest linker */
     bios_linker_loader_add_pointer(linker,
@@ -327,9 +353,12 @@ build_fadt(GArray *table_data, BIOSLinker *linker, AcpiPmInfo *pm,
     bios_linker_loader_add_pointer(linker,
         ACPI_BUILD_TABLE_FILE, dsdt_entry_offset, sizeof(fadt->dsdt),
         ACPI_BUILD_TABLE_FILE, dsdt_tbl_offset);
+    bios_linker_loader_add_pointer(linker,
+        ACPI_BUILD_TABLE_FILE, xdsdt_entry_offset, sizeof(fadt->x_dsdt),
+        ACPI_BUILD_TABLE_FILE, dsdt_tbl_offset);
 
     build_header(linker, table_data,
-                 (void *)fadt, "FACP", sizeof(*fadt), 1, oem_id, oem_table_id);
+                 (void *)fadt, "FACP", sizeof(*fadt), 3, oem_id, oem_table_id);
 }
 
 void pc_madt_cpu_entry(AcpiDeviceIf *adev, int uid,
@@ -2306,7 +2335,8 @@ build_srat(GArray *table_data, BIOSLinker *linker, MachineState *machine)
     srat->reserved1 = cpu_to_le32(1);
 
     for (i = 0; i < apic_ids->len; i++) {
-        int j = numa_get_node_for_cpu(i);
+        int node_id = apic_ids->cpus[i].props.has_node_id ?
+            apic_ids->cpus[i].props.node_id : 0;
         uint32_t apic_id = apic_ids->cpus[i].arch_id;
 
         if (apic_id < 255) {
@@ -2316,9 +2346,7 @@ build_srat(GArray *table_data, BIOSLinker *linker, MachineState *machine)
             core->type = ACPI_SRAT_PROCESSOR_APIC;
             core->length = sizeof(*core);
             core->local_apic_id = apic_id;
-            if (j < nb_numa_nodes) {
-                core->proximity_lo = j;
-            }
+            core->proximity_lo = node_id;
             memset(core->proximity_hi, 0, 3);
             core->local_sapic_eid = 0;
             core->flags = cpu_to_le32(1);
@@ -2329,9 +2357,7 @@ build_srat(GArray *table_data, BIOSLinker *linker, MachineState *machine)
             core->type = ACPI_SRAT_PROCESSOR_x2APIC;
             core->length = sizeof(*core);
             core->x2apic_id = cpu_to_le32(apic_id);
-            if (j < nb_numa_nodes) {
-                core->proximity_domain = cpu_to_le32(j);
-            }
+            core->proximity_domain = cpu_to_le32(node_id);
             core->flags = cpu_to_le32(1);
         }
     }
@@ -2678,6 +2704,10 @@ void acpi_build(AcpiBuildTables *tables, MachineState *machine)
     if (pcms->numa_nodes) {
         acpi_add_table(table_offsets, tables_blob);
         build_srat(tables_blob, tables->linker, machine);
+        if (have_numa_distance) {
+            acpi_add_table(table_offsets, tables_blob);
+            build_slit(tables_blob, tables->linker);
+        }
     }
     if (acpi_get_mcfg(&mcfg)) {
         acpi_add_table(table_offsets, tables_blob);

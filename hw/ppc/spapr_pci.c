@@ -50,8 +50,6 @@
 #include "sysemu/hostmem.h"
 #include "sysemu/numa.h"
 
-#include "hw/vfio/vfio.h"
-
 /* Copied from the kernel arch/powerpc/platforms/pseries/msi.c */
 #define RTAS_QUERY_FN           0
 #define RTAS_CHANGE_FN          1
@@ -1786,6 +1784,12 @@ static void spapr_phb_realize(DeviceState *dev, Error **errp)
 
 =======
     /* DMA setup */
+    if ((sphb->page_size_mask & qemu_getrampagesize()) == 0) {
+        error_report("System page size 0x%lx is not enabled in page_size_mask "
+                     "(0x%"PRIx64"). Performance may be slow",
+                     qemu_getrampagesize(), sphb->page_size_mask);
+    }
+
     for (i = 0; i < windows_supported; ++i) {
         tcet = spapr_tce_new_table(DEVICE(sphb), sphb->dma_liobn[i]);
         if (!tcet) {
@@ -2016,6 +2020,8 @@ static void spapr_phb_class_init(ObjectClass *klass, void *data)
     dc->props = spapr_phb_properties;
     dc->reset = spapr_phb_reset;
     dc->vmsd = &vmstate_spapr_pci;
+    /* Supported by TYPE_SPAPR_MACHINE */
+    dc->user_creatable = true;
     set_bit(DEVICE_CATEGORY_BRIDGE, dc->categories);
     hp->plug = spapr_phb_hot_plug_child;
     hp->unplug = spapr_phb_hot_unplug_child;
