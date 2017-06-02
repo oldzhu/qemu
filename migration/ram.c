@@ -35,7 +35,10 @@
 #include "qemu/bitmap.h"
 #include "qemu/timer.h"
 #include "qemu/main-loop.h"
+#include "xbzrle.h"
 #include "migration/migration.h"
+#include "migration/qemu-file.h"
+#include "migration/vmstate.h"
 #include "postcopy-ram.h"
 #include "exec/address-spaces.h"
 #include "migration/page_cache.h"
@@ -670,10 +673,6 @@ static void migration_bitmap_sync(RAMState *rs)
 
     rs->bitmap_sync_count++;
 
-    if (!rs->bytes_xfer_prev) {
-        rs->bytes_xfer_prev = ram_bytes_transferred();
-    }
-
     if (!rs->time_last_bitmap_sync) {
         rs->time_last_bitmap_sync = qemu_clock_get_ms(QEMU_CLOCK_REALTIME);
     }
@@ -695,23 +694,25 @@ static void migration_bitmap_sync(RAMState *rs)
 
     /* more than 1 second = 1000 millisecons */
     if (end_time > rs->time_last_bitmap_sync + 1000) {
+        /* calculate period counters */
+        rs->dirty_pages_rate = rs->num_dirty_pages_period * 1000
+            / (end_time - rs->time_last_bitmap_sync);
+        bytes_xfer_now = ram_bytes_transferred();
+
         if (migrate_auto_converge()) {
             /* The following detection logic can be refined later. For now:
                Check to see if the dirtied bytes is 50% more than the approx.
                amount of bytes that just got transferred since the last time we
                were in this routine. If that happens twice, start or increase
                throttling */
-            bytes_xfer_now = ram_bytes_transferred();
 
-            if (rs->dirty_pages_rate &&
-               (rs->num_dirty_pages_period * TARGET_PAGE_SIZE >
+            if ((rs->num_dirty_pages_period * TARGET_PAGE_SIZE >
                    (bytes_xfer_now - rs->bytes_xfer_prev) / 2) &&
-               (rs->dirty_rate_high_cnt++ >= 2)) {
+                (++rs->dirty_rate_high_cnt >= 2)) {
                     trace_migration_throttle();
                     rs->dirty_rate_high_cnt = 0;
                     mig_throttle_guest_down();
-             }
-             rs->bytes_xfer_prev = bytes_xfer_now;
+            }
         }
 
         if (migrate_use_xbzrle()) {
@@ -724,10 +725,11 @@ static void migration_bitmap_sync(RAMState *rs)
             rs->iterations_prev = rs->iterations;
             rs->xbzrle_cache_miss_prev = rs->xbzrle_cache_miss;
         }
-        rs->dirty_pages_rate = rs->num_dirty_pages_period * 1000
-            / (end_time - rs->time_last_bitmap_sync);
+
+        /* reset period counters */
         rs->time_last_bitmap_sync = end_time;
         rs->num_dirty_pages_period = 0;
+        rs->bytes_xfer_prev = bytes_xfer_now;
     }
     if (migrate_use_events()) {
         qapi_event_send_migration_pass(rs->bitmap_sync_count, NULL);
@@ -1312,6 +1314,8 @@ static int ram_save_target_page(RAMState *rs, PageSearchStatus *pss,
  * a host page in which case the remainder of the hostpage is sent.
  * Only dirty target pages are sent. Note that the host page size may
  * be a huge page for this block.
+ * The saving stops at the boundary of the used_length of the block
+ * if the RAMBlock isn't a multiple of the host page size.
  *
  * Returns the number of pages written or negative on error
  *
@@ -1335,7 +1339,8 @@ static int ram_save_host_page(RAMState *rs, PageSearchStatus *pss,
 
         pages += tmppages;
         pss->page++;
-    } while (pss->page & (pagesize_bits - 1));
+    } while ((pss->page & (pagesize_bits - 1)) &&
+             offset_in_ramblock(pss->block, pss->page << TARGET_PAGE_BITS));
 
     /* The offset we leave with is the last one we looked at */
     pss->page--;

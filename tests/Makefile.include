@@ -342,6 +342,8 @@ qapi-schema += alternate-array.json
 qapi-schema += alternate-base.json
 qapi-schema += alternate-clash.json
 qapi-schema += alternate-conflict-dict.json
+qapi-schema += alternate-conflict-enum-bool.json
+qapi-schema += alternate-conflict-enum-int.json
 qapi-schema += alternate-conflict-string.json
 qapi-schema += alternate-empty.json
 qapi-schema += alternate-nested.json
@@ -574,7 +576,7 @@ tests/test-qdev-global-props$(EXESUF): tests/test-qdev-global-props.o \
 	hw/core/reset.o \
 	$(test-qapi-obj-y)
 tests/test-vmstate$(EXESUF): tests/test-vmstate.o \
-	migration/vmstate.o migration/qemu-file.o \
+	migration/vmstate.o migration/vmstate-types.o migration/qemu-file.o \
         migration/qemu-file-channel.o migration/qjson.o \
 	$(test-io-obj-y)
 tests/test-timed-average$(EXESUF): tests/test-timed-average.o $(test-util-obj-y)
