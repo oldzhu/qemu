@@ -28,8 +28,8 @@
 #include "qemu/iov.h"
 #include "qemu/sockets.h"
 #include "qemu/coroutine.h"
-#include "migration/migration.h"
-#include "migration/qemu-file.h"
+#include "migration.h"
+#include "qemu-file.h"
 #include "trace.h"
 
 #define IO_BUF_SIZE 32768

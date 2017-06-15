@@ -24,7 +24,8 @@
 #ifndef CHAR_MUX_H
 #define CHAR_MUX_H
 
-#include "sysemu/char.h"
+#include "chardev/char.h"
+#include "chardev/char-fe.h"
 
 extern bool muxes_realized;
 

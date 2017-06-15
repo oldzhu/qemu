@@ -38,7 +38,9 @@
 #include "sysemu/cpus.h"
 #include "sysemu/hw_accel.h"
 #include "kvm_ppc.h"
-#include "migration/migration.h"
+#include "migration/misc.h"
+#include "migration/global_state.h"
+#include "migration/register.h"
 #include "mmu-hash64.h"
 #include "mmu-book3s-v3.h"
 #include "qom/cpu.h"
@@ -57,6 +59,7 @@
 #include "hw/pci/pci.h"
 #include "hw/scsi/scsi.h"
 #include "hw/virtio/virtio-scsi.h"
+#include "hw/virtio/vhost-scsi-common.h"
 
 #include "exec/address-spaces.h"
 #include "hw/usb.h"
@@ -106,7 +109,8 @@ static ICSState *spapr_ics_create(sPAPRMachineState *spapr,
 
     obj = object_new(type_ics);
     object_property_add_child(OBJECT(spapr), "ics", obj, &error_abort);
-    object_property_add_const_link(obj, "xics", OBJECT(spapr), &error_abort);
+    object_property_add_const_link(obj, ICS_PROP_XICS, OBJECT(spapr),
+                                   &error_abort);
     object_property_set_int(obj, nr_irqs, "nr-irqs", &local_err);
     if (local_err) {
         goto error;
@@ -182,25 +186,19 @@ static int spapr_fixup_cpu_smt_dt(void *fdt, int offset, PowerPCCPU *cpu,
     return ret;
 }
 
-static int spapr_fixup_cpu_numa_dt(void *fdt, int offset, CPUState *cs)
+static int spapr_fixup_cpu_numa_dt(void *fdt, int offset, PowerPCCPU *cpu)
 {
-    int ret = 0;
-    PowerPCCPU *cpu = POWERPC_CPU(cs);
     int index = ppc_get_vcpu_dt_id(cpu);
     uint32_t associativity[] = {cpu_to_be32(0x5),
                                 cpu_to_be32(0x0),
                                 cpu_to_be32(0x0),
                                 cpu_to_be32(0x0),
-                                cpu_to_be32(cs->numa_node),
+                                cpu_to_be32(cpu->node_id),
                                 cpu_to_be32(index)};
 
     /* Advertise NUMA via ibm,associativity */
-    if (nb_numa_nodes > 1) {
-        ret = fdt_setprop(fdt, offset, "ibm,associativity", associativity,
+    return fdt_setprop(fdt, offset, "ibm,associativity", associativity,
                           sizeof(associativity));
-    }
-
-    return ret;
 }
 
 /* Populate the "ibm,pa-features" property */
@@ -325,9 +323,11 @@ static int spapr_fixup_cpu_dt(void *fdt, sPAPRMachineState *spapr)
             return ret;
         }
 
-        ret = spapr_fixup_cpu_numa_dt(fdt, offset, cs);
-        if (ret < 0) {
-            return ret;
+        if (nb_numa_nodes > 1) {
+            ret = spapr_fixup_cpu_numa_dt(fdt, offset, cpu);
+            if (ret < 0) {
+                return ret;
+            }
         }
 
         ret = spapr_fixup_cpu_smt_dt(fdt, offset, cpu, compat_smt);
@@ -456,15 +456,13 @@ static void spapr_populate_cpu_dt(CPUState *cs, void *fdt, int offset,
     uint32_t pft_size_prop[] = {0, cpu_to_be32(spapr->htab_shift)};
     int compat_smt = MIN(smp_threads, ppc_compat_max_threads(cpu));
     sPAPRDRConnector *drc;
-    sPAPRDRConnectorClass *drck;
     int drc_index;
     uint32_t radix_AP_encodings[PPC_PAGE_SIZES_MAX_SZ];
     int i;
 
-    drc = spapr_dr_connector_by_id(SPAPR_DR_CONNECTOR_TYPE_CPU, index);
+    drc = spapr_drc_by_id(TYPE_SPAPR_DRC_CPU, index);
     if (drc) {
-        drck = SPAPR_DR_CONNECTOR_GET_CLASS(drc);
-        drc_index = drck->get_index(drc);
+        drc_index = spapr_drc_index(drc);
         _FDT((fdt_setprop_cell(fdt, offset, "ibm,my-drc-index", drc_index)));
     }
 
@@ -542,7 +540,9 @@ static void spapr_populate_cpu_dt(CPUState *cs, void *fdt, int offset,
     _FDT((fdt_setprop(fdt, offset, "ibm,pft-size",
                       pft_size_prop, sizeof(pft_size_prop))));
 
-    _FDT(spapr_fixup_cpu_numa_dt(fdt, offset, cs));
+    if (nb_numa_nodes > 1) {
+        _FDT(spapr_fixup_cpu_numa_dt(fdt, offset, cpu));
+    }
 
     _FDT(spapr_fixup_cpu_smt_dt(fdt, offset, cpu, compat_smt));
 
@@ -654,15 +654,13 @@ static int spapr_populate_drconf_memory(sPAPRMachineState *spapr, void *fdt)
 
         if (i >= hotplug_lmb_start) {
             sPAPRDRConnector *drc;
-            sPAPRDRConnectorClass *drck;
 
-            drc = spapr_dr_connector_by_id(SPAPR_DR_CONNECTOR_TYPE_LMB, i);
+            drc = spapr_drc_by_id(TYPE_SPAPR_DRC_LMB, i);
             g_assert(drc);
-            drck = SPAPR_DR_CONNECTOR_GET_CLASS(drc);
 
             dynamic_memory[0] = cpu_to_be32(addr >> 32);
             dynamic_memory[1] = cpu_to_be32(addr & 0xffffffff);
-            dynamic_memory[2] = cpu_to_be32(drck->get_index(drc));
+            dynamic_memory[2] = cpu_to_be32(spapr_drc_index(drc));
             dynamic_memory[3] = cpu_to_be32(0); /* reserved */
             dynamic_memory[4] = cpu_to_be32(numa_get_node(addr, NULL));
             if (memory_region_present(get_system_memory(), addr)) {
@@ -1915,7 +1913,7 @@ static void spapr_create_lmb_dr_connectors(sPAPRMachineState *spapr)
         uint64_t addr;
 
         addr = i * lmb_size + spapr->hotplug_memory.base;
-        drc = spapr_dr_connector_new(OBJECT(spapr), SPAPR_DR_CONNECTOR_TYPE_LMB,
+        drc = spapr_dr_connector_new(OBJECT(spapr), TYPE_SPAPR_DRC_LMB,
                                      addr/lmb_size);
         qemu_register_reset(spapr_drc_reset, drc);
     }
@@ -2012,8 +2010,7 @@ static void spapr_init_cpus(sPAPRMachineState *spapr)
 
         if (mc->has_hotpluggable_cpus) {
             sPAPRDRConnector *drc =
-                spapr_dr_connector_new(OBJECT(spapr),
-                                       SPAPR_DR_CONNECTOR_TYPE_CPU,
+                spapr_dr_connector_new(OBJECT(spapr), TYPE_SPAPR_DRC_CPU,
                                        (core_id / smp_threads) * smt);
 
             qemu_register_reset(spapr_drc_reset, drc);
@@ -2344,10 +2341,6 @@ static void ppc_spapr_init(MachineState *machine)
     register_savevm_live(NULL, "spapr/htab", -1, 1,
                          &savevm_htab_handlers, spapr);
 
-    /* used by RTAS */
-    QTAILQ_INIT(&spapr->ccs_list);
-    qemu_register_reset(spapr_ccs_reset_hook, spapr);
-
     qemu_register_boot_set(spapr_boot_set, spapr);
 
     if (kvm_enabled()) {
@@ -2388,6 +2381,7 @@ static char *spapr_get_fw_dev_path(FWPathProvider *p, BusState *bus,
     ((type *)object_dynamic_cast(OBJECT(obj), (name)))
     SCSIDevice *d = CAST(SCSIDevice,  dev, TYPE_SCSI_DEVICE);
     sPAPRPHBState *phb = CAST(sPAPRPHBState, dev, TYPE_SPAPR_PCI_HOST_BRIDGE);
+    VHostSCSICommon *vsc = CAST(VHostSCSICommon, dev, TYPE_VHOST_SCSI_COMMON);
 
     if (d) {
         void *spapr = CAST(void, bus->parent, "spapr-vscsi");
@@ -2442,6 +2436,18 @@ static char *spapr_get_fw_dev_path(FWPathProvider *p, BusState *bus,
     if (phb) {
         /* Replace "pci" with "pci@800000020000000" */
         return g_strdup_printf("pci@%"PRIX64, phb->buid);
+    }
+
+    if (vsc) {
+        /* Same logic as virtio above */
+        unsigned id = 0x1000000 | (vsc->target << 16) | vsc->lun;
+        return g_strdup_printf("disk@%"PRIX64, (uint64_t)id << 32);
+    }
+
+    if (g_str_equal("pci-bridge", qdev_fw_name(dev))) {
+        /* SLOF uses "pci" instead of "pci-bridge" for PCI bridges */
+        PCIDevice *pcidev = CAST(PCIDevice, dev, TYPE_PCI_DEVICE);
+        return g_strdup_printf("pci@%x", PCI_SLOT(pcidev->devfn));
     }
 
     return NULL;
@@ -2526,25 +2532,24 @@ static void spapr_add_lmbs(DeviceState *dev, uint64_t addr_start, uint64_t size,
                            Error **errp)
 {
     sPAPRDRConnector *drc;
-    sPAPRDRConnectorClass *drck;
     uint32_t nr_lmbs = size/SPAPR_MEMORY_BLOCK_SIZE;
     int i, fdt_offset, fdt_size;
     void *fdt;
     uint64_t addr = addr_start;
 
     for (i = 0; i < nr_lmbs; i++) {
-        drc = spapr_dr_connector_by_id(SPAPR_DR_CONNECTOR_TYPE_LMB,
-                addr/SPAPR_MEMORY_BLOCK_SIZE);
+        drc = spapr_drc_by_id(TYPE_SPAPR_DRC_LMB,
+                              addr / SPAPR_MEMORY_BLOCK_SIZE);
         g_assert(drc);
 
         fdt = create_device_tree(&fdt_size);
         fdt_offset = spapr_populate_memory_node(fdt, node, addr,
                                                 SPAPR_MEMORY_BLOCK_SIZE);
 
-        drck = SPAPR_DR_CONNECTOR_GET_CLASS(drc);
-        drck->attach(drc, dev, fdt, fdt_offset, !dev->hotplugged, errp);
+        spapr_drc_attach(drc, dev, fdt, fdt_offset, !dev->hotplugged, errp);
         addr += SPAPR_MEMORY_BLOCK_SIZE;
         if (!dev->hotplugged) {
+            sPAPRDRConnectorClass *drck = SPAPR_DR_CONNECTOR_GET_CLASS(drc);
             /* guests expect coldplugged LMBs to be pre-allocated */
             drck->set_allocation_state(drc, SPAPR_DR_ALLOCATION_STATE_USABLE);
             drck->set_isolation_state(drc, SPAPR_DR_ISOLATION_STATE_UNISOLATED);
@@ -2555,12 +2560,11 @@ static void spapr_add_lmbs(DeviceState *dev, uint64_t addr_start, uint64_t size,
      */
     if (dev->hotplugged) {
         if (dedicated_hp_event_source) {
-            drc = spapr_dr_connector_by_id(SPAPR_DR_CONNECTOR_TYPE_LMB,
-                    addr_start / SPAPR_MEMORY_BLOCK_SIZE);
-            drck = SPAPR_DR_CONNECTOR_GET_CLASS(drc);
+            drc = spapr_drc_by_id(TYPE_SPAPR_DRC_LMB,
+                                  addr_start / SPAPR_MEMORY_BLOCK_SIZE);
             spapr_hotplug_req_add_by_count_indexed(SPAPR_DR_CONNECTOR_TYPE_LMB,
                                                    nr_lmbs,
-                                                   drck->get_index(drc));
+                                                   spapr_drc_index(drc));
         } else {
             spapr_hotplug_req_add_by_count(SPAPR_DR_CONNECTOR_TYPE_LMB,
                                            nr_lmbs);
@@ -2618,8 +2622,11 @@ static void spapr_memory_pre_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
     if (mem_dev && !kvmppc_is_mem_backend_page_size_ok(mem_dev)) {
         error_setg(errp, "Memory backend has bad page size. "
                    "Use 'memory-backend-file' with correct mem-path.");
-        return;
+        goto out;
     }
+
+out:
+    g_free(mem_dev);
 }
 
 struct sPAPRDIMMState {
@@ -2673,10 +2680,10 @@ static sPAPRDIMMState *spapr_recover_pending_dimm_state(sPAPRMachineState *ms,
 
     addr = addr_start;
     for (i = 0; i < nr_lmbs; i++) {
-        drc = spapr_dr_connector_by_id(SPAPR_DR_CONNECTOR_TYPE_LMB,
-                                       addr / SPAPR_MEMORY_BLOCK_SIZE);
+        drc = spapr_drc_by_id(TYPE_SPAPR_DRC_LMB,
+                              addr / SPAPR_MEMORY_BLOCK_SIZE);
         g_assert(drc);
-        if (drc->indicator_state != SPAPR_DR_INDICATOR_STATE_INACTIVE) {
+        if (drc->dev) {
             avail_lmbs++;
         }
         addr += SPAPR_MEMORY_BLOCK_SIZE;
@@ -2700,10 +2707,11 @@ void spapr_lmb_release(DeviceState *dev)
      * during the unplug process. In this case recover it. */
     if (ds == NULL) {
         ds = spapr_recover_pending_dimm_state(spapr, PC_DIMM(dev));
-        if (ds->nr_lmbs) {
-            return;
-        }
-    } else if (--ds->nr_lmbs) {
+        /* The DRC being examined by the caller at least must be counted */
+        g_assert(ds->nr_lmbs);
+    }
+
+    if (--ds->nr_lmbs) {
         return;
     }
 
@@ -2741,7 +2749,6 @@ static void spapr_memory_unplug_request(HotplugHandler *hotplug_dev,
     uint64_t addr_start, addr;
     int i;
     sPAPRDRConnector *drc;
-    sPAPRDRConnectorClass *drck;
     sPAPRDIMMState *ds;
 
     addr_start = object_property_get_int(OBJECT(dimm), PC_DIMM_ADDR_PROP,
@@ -2757,21 +2764,18 @@ static void spapr_memory_unplug_request(HotplugHandler *hotplug_dev,
 
     addr = addr_start;
     for (i = 0; i < nr_lmbs; i++) {
-        drc = spapr_dr_connector_by_id(SPAPR_DR_CONNECTOR_TYPE_LMB,
-                addr / SPAPR_MEMORY_BLOCK_SIZE);
+        drc = spapr_drc_by_id(TYPE_SPAPR_DRC_LMB,
+                              addr / SPAPR_MEMORY_BLOCK_SIZE);
         g_assert(drc);
 
-        drck = SPAPR_DR_CONNECTOR_GET_CLASS(drc);
-        drck->detach(drc, dev, errp);
+        spapr_drc_detach(drc, dev, errp);
         addr += SPAPR_MEMORY_BLOCK_SIZE;
     }
 
-    drc = spapr_dr_connector_by_id(SPAPR_DR_CONNECTOR_TYPE_LMB,
-                                   addr_start / SPAPR_MEMORY_BLOCK_SIZE);
-    drck = SPAPR_DR_CONNECTOR_GET_CLASS(drc);
+    drc = spapr_drc_by_id(TYPE_SPAPR_DRC_LMB,
+                          addr_start / SPAPR_MEMORY_BLOCK_SIZE);
     spapr_hotplug_req_remove_by_count_indexed(SPAPR_DR_CONNECTOR_TYPE_LMB,
-                                              nr_lmbs,
-                                              drck->get_index(drc));
+                                              nr_lmbs, spapr_drc_index(drc));
 out:
     error_propagate(errp, local_err);
 }
@@ -2824,7 +2828,6 @@ void spapr_core_unplug_request(HotplugHandler *hotplug_dev, DeviceState *dev,
 {
     int index;
     sPAPRDRConnector *drc;
-    sPAPRDRConnectorClass *drck;
     Error *local_err = NULL;
     CPUCore *cc = CPU_CORE(dev);
     int smt = kvmppc_smt_threads();
@@ -2839,11 +2842,10 @@ void spapr_core_unplug_request(HotplugHandler *hotplug_dev, DeviceState *dev,
         return;
     }
 
-    drc = spapr_dr_connector_by_id(SPAPR_DR_CONNECTOR_TYPE_CPU, index * smt);
+    drc = spapr_drc_by_id(TYPE_SPAPR_DRC_CPU, index * smt);
     g_assert(drc);
 
-    drck = SPAPR_DR_CONNECTOR_GET_CLASS(drc);
-    drck->detach(drc, dev, &local_err);
+    spapr_drc_detach(drc, dev, &local_err);
     if (local_err) {
         error_propagate(errp, local_err);
         return;
@@ -2874,7 +2876,7 @@ static void spapr_core_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
                    cc->core_id);
         return;
     }
-    drc = spapr_dr_connector_by_id(SPAPR_DR_CONNECTOR_TYPE_CPU, index * smt);
+    drc = spapr_drc_by_id(TYPE_SPAPR_DRC_CPU, index * smt);
 
     g_assert(drc || !mc->has_hotpluggable_cpus);
 
@@ -2887,8 +2889,8 @@ static void spapr_core_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
     }
 
     if (drc) {
-        sPAPRDRConnectorClass *drck = SPAPR_DR_CONNECTOR_GET_CLASS(drc);
-        drck->attach(drc, dev, fdt, fdt_offset, !dev->hotplugged, &local_err);
+        spapr_drc_attach(drc, dev, fdt, fdt_offset, !dev->hotplugged,
+                         &local_err);
         if (local_err) {
             g_free(fdt);
             error_propagate(errp, local_err);
@@ -2922,11 +2924,9 @@ static void spapr_core_pre_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
     MachineClass *mc = MACHINE_GET_CLASS(hotplug_dev);
     Error *local_err = NULL;
     CPUCore *cc = CPU_CORE(dev);
-    sPAPRCPUCore *sc = SPAPR_CPU_CORE(dev);
     char *base_core_type = spapr_get_cpu_core_type(machine->cpu_model);
     const char *type = object_get_typename(OBJECT(dev));
     CPUArchId *core_slot;
-    int node_id;
     int index;
 
     if (dev->hotplugged && !mc->has_hotpluggable_cpus) {
@@ -2967,20 +2967,7 @@ static void spapr_core_pre_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
         goto out;
     }
 
-    node_id = core_slot->props.node_id;
-    if (!core_slot->props.has_node_id) {
-        /* by default CPUState::numa_node was 0 if it's not set via CLI
-         * keep it this way for now but in future we probably should
-         * refuse to start up with incomplete numa mapping */
-        node_id = 0;
-    }
-    if (sc->node_id == CPU_UNSET_NUMA_NODE_ID) {
-        sc->node_id = node_id;
-    } else if (sc->node_id != node_id) {
-        error_setg(&local_err, "node-id %d must match numa node specified"
-            "with -numa option for cpu-index %d", sc->node_id, cc->core_id);
-        goto out;
-    }
+    numa_cpu_pre_plug(core_slot, dev, &local_err);
 
 out:
     g_free(base_core_type);

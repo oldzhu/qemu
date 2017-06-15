@@ -81,17 +81,18 @@ int main(int argc, char **argv)
 #include "sysemu/numa.h"
 #include "exec/gdbstub.h"
 #include "qemu/timer.h"
-#include "sysemu/char.h"
+#include "chardev/char.h"
 #include "qemu/bitmap.h"
 #include "qemu/log.h"
 #include "sysemu/blockdev.h"
 #include "hw/block/block.h"
-#include "migration/block.h"
+#include "migration/misc.h"
+#include "migration/snapshot.h"
+#include "migration/global_state.h"
 #include "sysemu/tpm.h"
 #include "sysemu/dma.h"
 #include "hw/audio/soundhw.h"
 #include "audio/audio.h"
-#include "migration/migration.h"
 #include "sysemu/cpus.h"
 #include "migration/colo.h"
 #include "sysemu/kvm.h"
@@ -4722,7 +4723,7 @@ int main(int argc, char **argv, char **envp)
         replay_vmstate_init();
     } else if (loadvm) {
         Error *local_err = NULL;
-        if (load_vmstate(loadvm, &local_err) < 0) {
+        if (load_snapshot(loadvm, &local_err) < 0) {
             error_report_err(local_err);
             autostart = 0;
         }

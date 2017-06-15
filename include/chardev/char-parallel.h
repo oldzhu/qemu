@@ -21,33 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef CHAR_WIN_H
-#define CHAR_WIN_H
+#ifndef CHAR_PARALLEL_H
+#define CHAR_PARALLEL_H
 
-#include "sysemu/char.h"
+#include "chardev/char.h"
 
-typedef struct {
-    Chardev parent;
-    int max_size;
-    HANDLE hcom, hrecv, hsend;
-    OVERLAPPED orecv;
-    BOOL fpipe;
-    DWORD len;
+#define CHR_IOCTL_PP_READ_DATA        3
+#define CHR_IOCTL_PP_WRITE_DATA       4
+#define CHR_IOCTL_PP_READ_CONTROL     5
+#define CHR_IOCTL_PP_WRITE_CONTROL    6
+#define CHR_IOCTL_PP_READ_STATUS      7
+#define CHR_IOCTL_PP_EPP_READ_ADDR    8
+#define CHR_IOCTL_PP_EPP_READ         9
+#define CHR_IOCTL_PP_EPP_WRITE_ADDR  10
+#define CHR_IOCTL_PP_EPP_WRITE       11
+#define CHR_IOCTL_PP_DATA_DIR        12
 
-    /* Protected by the Chardev chr_write_lock.  */
-    OVERLAPPED osend;
-    /* FIXME: file/console do not finalize */
-    bool skip_free;
-} WinChardev;
+struct ParallelIOArg {
+    void *buffer;
+    int count;
+};
 
-#define NSENDBUF 2048
-#define NRECVBUF 2048
-
-#define TYPE_CHARDEV_WIN "chardev-win"
-#define WIN_CHARDEV(obj) OBJECT_CHECK(WinChardev, (obj), TYPE_CHARDEV_WIN)
-
-void qemu_chr_open_win_file(Chardev *chr, HANDLE fd_out);
-int win_chr_init(Chardev *chr, const char *filename, Error **errp);
-int win_chr_pipe_poll(void *opaque);
-
-#endif /* CHAR_WIN_H */
+#endif /* CHAR_PARALLEL_H */

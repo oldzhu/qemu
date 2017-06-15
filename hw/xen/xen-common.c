@@ -11,9 +11,10 @@
 #include "qemu/osdep.h"
 #include "hw/xen/xen_backend.h"
 #include "qmp-commands.h"
-#include "sysemu/char.h"
+#include "chardev/char.h"
 #include "sysemu/accel.h"
-#include "migration/migration.h"
+#include "migration/misc.h"
+#include "migration/global_state.h"
 
 //#define DEBUG_XEN
 

@@ -4,7 +4,7 @@
 #include "qemu-common.h"
 #include "qemu/config-file.h"
 #include "qemu/sockets.h"
-#include "sysemu/char.h"
+#include "chardev/char-fe.h"
 #include "sysemu/sysemu.h"
 #include "qapi/error.h"
 #include "qom/qom-qobject.h"
@@ -97,8 +97,7 @@ static void char_stdio_test_subprocess(void)
     ret = qemu_chr_fe_write(&be, (void *)"buf", 4);
     g_assert_cmpint(ret, ==, 4);
 
-    qemu_chr_fe_deinit(&be);
-    object_unparent(OBJECT(chr));
+    qemu_chr_fe_deinit(&be, true);
 }
 
 static void char_stdio_test(void)
@@ -146,8 +145,7 @@ static void char_ringbuf_test(void)
     g_assert_cmpstr(data, ==, "");
     g_free(data);
 
-    qemu_chr_fe_deinit(&be);
-    object_unparent(OBJECT(chr));
+    qemu_chr_fe_deinit(&be, true);
 
     /* check alias */
     opts = qemu_opts_create(qemu_find_opts("chardev"), "memory-label",
@@ -231,9 +229,8 @@ static void char_mux_test(void)
     g_assert_cmpint(strlen(data), !=, 0);
     g_free(data);
 
-    qemu_chr_fe_deinit(&chr_be1);
-    qemu_chr_fe_deinit(&chr_be2);
-    object_unparent(OBJECT(chr));
+    qemu_chr_fe_deinit(&chr_be1, false);
+    qemu_chr_fe_deinit(&chr_be2, true);
 }
 
 typedef struct SocketIdleData {
@@ -396,8 +393,7 @@ static void char_pipe_test(void)
     g_assert_cmpint(fe.read_count, ==, 8);
     g_assert_cmpstr(fe.read_buf, ==, "pipe-in");
 
-    qemu_chr_fe_deinit(&be);
-    object_unparent(OBJECT(chr));
+    qemu_chr_fe_deinit(&be, true);
 
     g_assert(g_unlink(in) == 0);
     g_assert(g_unlink(out) == 0);
@@ -453,6 +449,32 @@ static void char_udp_test(void)
     close(sock);
     g_free(tmp);
 }
+
+#ifdef HAVE_CHARDEV_SERIAL
+static void char_serial_test(void)
+{
+    QemuOpts *opts;
+    Chardev *chr;
+
+    opts = qemu_opts_create(qemu_find_opts("chardev"), "serial-id",
+                            1, &error_abort);
+    qemu_opt_set(opts, "backend", "serial", &error_abort);
+    qemu_opt_set(opts, "path", "/dev/null", &error_abort);
+
+    chr = qemu_chr_new_from_opts(opts, NULL);
+    g_assert_nonnull(chr);
+    /* TODO: add more tests with a pty */
+    object_unparent(OBJECT(chr));
+
+    /* test tty alias */
+    qemu_opt_set(opts, "backend", "tty", &error_abort);
+    chr = qemu_chr_new_from_opts(opts, NULL);
+    g_assert_nonnull(chr);
+    object_unparent(OBJECT(chr));
+
+    qemu_opts_del(opts);
+}
+#endif
 
 static void char_file_test(void)
 {
@@ -511,8 +533,7 @@ static void char_file_test(void)
 
         g_assert_cmpint(fe.read_count, ==, 8);
         g_assert_cmpstr(fe.read_buf, ==, "fifo-in");
-        qemu_chr_fe_deinit(&be);
-        object_unref(OBJECT(chr));
+        qemu_chr_fe_deinit(&be, true);
         g_unlink(fifo);
         g_free(fifo);
     }
@@ -549,7 +570,7 @@ static void char_null_test(void)
     error_free_or_abort(&err);
 
     /* deinit & reinit */
-    qemu_chr_fe_deinit(&be);
+    qemu_chr_fe_deinit(&be, false);
     qemu_chr_fe_init(&be, chr, &error_abort);
 
     qemu_chr_fe_set_open(&be, true);
@@ -563,8 +584,7 @@ static void char_null_test(void)
     ret = qemu_chr_fe_write(&be, (void *)"buf", 4);
     g_assert_cmpint(ret, ==, 4);
 
-    qemu_chr_fe_deinit(&be);
-    object_unparent(OBJECT(chr));
+    qemu_chr_fe_deinit(&be, true);
 }
 
 static void char_invalid_test(void)
@@ -603,6 +623,9 @@ int main(int argc, char **argv)
     g_test_add_func("/char/file", char_file_test);
     g_test_add_func("/char/socket", char_socket_test);
     g_test_add_func("/char/udp", char_udp_test);
+#ifdef HAVE_CHARDEV_SERIAL
+    g_test_add_func("/char/serial", char_serial_test);
+#endif
 
     return g_test_run();
 }

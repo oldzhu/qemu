@@ -28,6 +28,7 @@
 #include "ipl.h"
 #include "hw/s390x/s390-virtio-ccw.h"
 #include "hw/s390x/css-bridge.h"
+#include "migration/register.h"
 
 static const char *const reset_dev_types[] = {
     TYPE_VIRTUAL_CSS_BRIDGE,
@@ -104,6 +105,11 @@ void s390_memory_init(ram_addr_t mem_size)
     s390_skeys_init();
 }
 
+static SaveVMHandlers savevm_gtod = {
+    .save_state = gtod_save,
+    .load_state = gtod_load,
+};
+
 static void ccw_init(MachineState *machine)
 {
     int ret;
@@ -151,8 +157,7 @@ static void ccw_init(MachineState *machine)
     s390_create_virtio_net(BUS(css_bus), "virtio-net-ccw");
 
     /* Register savevm handler for guest TOD clock */
-    register_savevm(NULL, "todclock", 0, 1,
-                    gtod_save, gtod_load, kvm_state);
+    register_savevm_live(NULL, "todclock", 0, 1, &savevm_gtod, kvm_state);
 }
 
 static void s390_cpu_plug(HotplugHandler *hotplug_dev,
