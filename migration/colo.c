@@ -11,7 +11,6 @@
  */
 
 #include "qemu/osdep.h"
-#include "qemu/timer.h"
 #include "sysemu/sysemu.h"
 #include "qemu-file-channel.h"
 #include "migration.h"
@@ -22,7 +21,6 @@
 #include "io/channel-buffer.h"
 #include "trace.h"
 #include "qemu/error-report.h"
-#include "qapi/error.h"
 #include "migration/failover.h"
 #include "replication.h"
 #include "qmp-commands.h"
@@ -354,7 +352,7 @@ static int colo_do_checkpoint_transaction(MigrationState *s,
     qemu_savevm_state_header(fb);
     qemu_savevm_state_begin(fb);
     qemu_mutex_lock_iothread();
-    qemu_savevm_state_complete_precopy(fb, false);
+    qemu_savevm_state_complete_precopy(fb, false, false);
     qemu_mutex_unlock_iothread();
 
     qemu_fflush(fb);

@@ -675,6 +675,7 @@ static void check_compatibility(const S390CPUModel *max_model,
 static void add_qemu_cpu_model_features(S390FeatBitmap fbm)
 {
     static const int feats[] = {
+        S390_FEAT_DAT_ENH,
         S390_FEAT_STFLE,
         S390_FEAT_EXTENDED_IMMEDIATE,
         S390_FEAT_EXTENDED_TRANSLATION_2,
@@ -682,9 +683,14 @@ static void add_qemu_cpu_model_features(S390FeatBitmap fbm)
         S390_FEAT_LONG_DISPLACEMENT_FAST,
         S390_FEAT_ETF2_ENH,
         S390_FEAT_STORE_CLOCK_FAST,
+        S390_FEAT_MOVE_WITH_OPTIONAL_SPEC,
         S390_FEAT_GENERAL_INSTRUCTIONS_EXT,
         S390_FEAT_EXECUTE_EXT,
+        S390_FEAT_FLOATING_POINT_SUPPPORT_ENH,
         S390_FEAT_STFLE_45,
+        S390_FEAT_STFLE_49,
+        S390_FEAT_LOCAL_TLB_CLEARING,
+        S390_FEAT_STFLE_53,
     };
     int i;
 
@@ -737,8 +743,6 @@ static inline void apply_cpu_model(const S390CPUModel *model, Error **errp)
 
     if (kvm_enabled()) {
         kvm_s390_apply_cpu_model(model, errp);
-    } else if (model) {
-        /* FIXME TCG - use data for stdip/stfl */
     }
 
     if (!*errp) {
@@ -786,6 +790,12 @@ void s390_realize_cpu_model(CPUState *cs, Error **errp)
     }
 
     apply_cpu_model(cpu->model, errp);
+
+    cpu->env.cpuid = s390_cpuid_from_cpu_model(cpu->model);
+    if (tcg_enabled()) {
+        /* basic mode, write the cpu address into the first 4 bit of the ID */
+        cpu->env.cpuid = deposit64(cpu->env.cpuid, 54, 4, cpu->env.cpu_num);
+    }
 }
 
 static void get_feature(Object *obj, Visitor *v, const char *name,

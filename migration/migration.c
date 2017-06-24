@@ -16,7 +16,6 @@
 #include "qemu/osdep.h"
 #include "qemu/cutils.h"
 #include "qemu/error-report.h"
-#include "qemu/main-loop.h"
 #include "migration/blocker.h"
 #include "exec.h"
 #include "fd.h"
@@ -30,11 +29,9 @@
 #include "qemu-file-channel.h"
 #include "qemu-file.h"
 #include "migration/vmstate.h"
-#include "sysemu/sysemu.h"
 #include "block/block.h"
 #include "qapi/qmp/qerror.h"
 #include "qapi/util.h"
-#include "qemu/sockets.h"
 #include "qemu/rcu.h"
 #include "block.h"
 #include "postcopy-ram.h"
@@ -42,9 +39,6 @@
 #include "qmp-commands.h"
 #include "trace.h"
 #include "qapi-event.h"
-#include "qom/cpu.h"
-#include "exec/memory.h"
-#include "exec/address-spaces.h"
 #include "exec/target_page.h"
 #include "io/channel-buffer.h"
 #include "migration/colo.h"
@@ -1559,7 +1553,7 @@ static int postcopy_start(MigrationState *ms, bool *old_vm_running)
      * Cause any non-postcopiable, but iterative devices to
      * send out their final data.
      */
-    qemu_savevm_state_complete_precopy(ms->to_dst_file, true);
+    qemu_savevm_state_complete_precopy(ms->to_dst_file, true, false);
 
     /*
      * in Finish migrate and with the io-lock held everything should
@@ -1603,7 +1597,7 @@ static int postcopy_start(MigrationState *ms, bool *old_vm_running)
      */
     qemu_savevm_send_postcopy_listen(fb);
 
-    qemu_savevm_state_complete_precopy(fb, false);
+    qemu_savevm_state_complete_precopy(fb, false, false);
     qemu_savevm_send_ping(fb, 3);
 
     qemu_savevm_send_postcopy_run(fb);
@@ -1701,20 +1695,15 @@ static void migration_completion(MigrationState *s, int current_active_state,
         ret = global_state_store();
 
         if (!ret) {
+            bool inactivate = !migrate_colo_enabled();
             ret = vm_stop_force_state(RUN_STATE_FINISH_MIGRATE);
             if (ret >= 0) {
                 qemu_file_set_rate_limit(s->to_dst_file, INT64_MAX);
-                qemu_savevm_state_complete_precopy(s->to_dst_file, false);
+                ret = qemu_savevm_state_complete_precopy(s->to_dst_file, false,
+                                                         inactivate);
             }
-            /*
-             * Don't mark the image with BDRV_O_INACTIVE flag if
-             * we will go into COLO stage later.
-             */
-            if (ret >= 0 && !migrate_colo_enabled()) {
-                ret = bdrv_inactivate_all();
-                if (ret >= 0) {
-                    s->block_inactive = true;
-                }
+            if (inactivate && ret >= 0) {
+                s->block_inactive = true;
             }
         }
         qemu_mutex_unlock_iothread();
@@ -1814,7 +1803,11 @@ static void *migration_thread(void *opaque)
 
     qemu_savevm_state_header(s->to_dst_file);
 
-    if (s->to_dst_file) {
+    /*
+     * If we opened the return path, we need to make sure dst has it
+     * opened as well.
+     */
+    if (s->rp_state.from_dst_file) {
         /* Now tell the dest that it should open its end so it can reply */
         qemu_savevm_send_open_return_path(s->to_dst_file);
 

@@ -149,7 +149,7 @@ typedef struct CPUS390XState {
     CPU_COMMON
 
     uint32_t cpu_num;
-    uint32_t machine_type;
+    uint64_t cpuid;
 
     uint64_t tod_offset;
     uint64_t tod_basetime;
@@ -304,6 +304,7 @@ void s390x_cpu_debug_excp_handler(CPUState *cs);
 #undef PSW_MASK_WAIT
 #undef PSW_MASK_PSTATE
 #undef PSW_MASK_ASC
+#undef PSW_SHIFT_ASC
 #undef PSW_MASK_CC
 #undef PSW_MASK_PM
 #undef PSW_MASK_64
@@ -315,11 +316,12 @@ void s390x_cpu_debug_excp_handler(CPUState *cs);
 #define PSW_MASK_IO             0x0200000000000000ULL
 #define PSW_MASK_EXT            0x0100000000000000ULL
 #define PSW_MASK_KEY            0x00F0000000000000ULL
-#define PSW_SHIFT_KEY           56
+#define PSW_SHIFT_KEY           52
 #define PSW_MASK_MCHECK         0x0004000000000000ULL
 #define PSW_MASK_WAIT           0x0002000000000000ULL
 #define PSW_MASK_PSTATE         0x0001000000000000ULL
 #define PSW_MASK_ASC            0x0000C00000000000ULL
+#define PSW_SHIFT_ASC           46
 #define PSW_MASK_CC             0x0000300000000000ULL
 #define PSW_MASK_PM             0x00000F0000000000ULL
 #define PSW_MASK_64             0x0000000100000000ULL
@@ -336,24 +338,26 @@ void s390x_cpu_debug_excp_handler(CPUState *cs);
 #define PSW_ASC_SECONDARY       0x0000800000000000ULL
 #define PSW_ASC_HOME            0x0000C00000000000ULL
 
+/* the address space values shifted */
+#define AS_PRIMARY              0
+#define AS_ACCREG               1
+#define AS_SECONDARY            2
+#define AS_HOME                 3
+
 /* tb flags */
 
-#define FLAG_MASK_PER           (PSW_MASK_PER    >> 32)
-#define FLAG_MASK_DAT           (PSW_MASK_DAT    >> 32)
-#define FLAG_MASK_IO            (PSW_MASK_IO     >> 32)
-#define FLAG_MASK_EXT           (PSW_MASK_EXT    >> 32)
-#define FLAG_MASK_KEY           (PSW_MASK_KEY    >> 32)
-#define FLAG_MASK_MCHECK        (PSW_MASK_MCHECK >> 32)
-#define FLAG_MASK_WAIT          (PSW_MASK_WAIT   >> 32)
-#define FLAG_MASK_PSTATE        (PSW_MASK_PSTATE >> 32)
-#define FLAG_MASK_ASC           (PSW_MASK_ASC    >> 32)
-#define FLAG_MASK_CC            (PSW_MASK_CC     >> 32)
-#define FLAG_MASK_PM            (PSW_MASK_PM     >> 32)
-#define FLAG_MASK_64            (PSW_MASK_64     >> 32)
-#define FLAG_MASK_32            0x00001000
+#define FLAG_MASK_PSW_SHIFT     31
+#define FLAG_MASK_PER           (PSW_MASK_PER    >> FLAG_MASK_PSW_SHIFT)
+#define FLAG_MASK_PSTATE        (PSW_MASK_PSTATE >> FLAG_MASK_PSW_SHIFT)
+#define FLAG_MASK_ASC           (PSW_MASK_ASC    >> FLAG_MASK_PSW_SHIFT)
+#define FLAG_MASK_64            (PSW_MASK_64     >> FLAG_MASK_PSW_SHIFT)
+#define FLAG_MASK_32            (PSW_MASK_32     >> FLAG_MASK_PSW_SHIFT)
+#define FLAG_MASK_PSW		(FLAG_MASK_PER | FLAG_MASK_PSTATE \
+                                | FLAG_MASK_ASC | FLAG_MASK_64 | FLAG_MASK_32)
 
 /* Control register 0 bits */
 #define CR0_LOWPROT             0x0000000010000000ULL
+#define CR0_SECONDARY           0x0000000004000000ULL
 #define CR0_EDAT                0x0000000000800000ULL
 
 /* MMU */
@@ -361,7 +365,18 @@ void s390x_cpu_debug_excp_handler(CPUState *cs);
 #define MMU_SECONDARY_IDX       1
 #define MMU_HOME_IDX            2
 
-static inline int cpu_mmu_index (CPUS390XState *env, bool ifetch)
+static inline bool psw_key_valid(CPUS390XState *env, uint8_t psw_key)
+{
+    uint16_t pkm = env->cregs[3] >> 16;
+
+    if (env->psw.mask & PSW_MASK_PSTATE) {
+        /* PSW key has range 0..15, it is valid if the bit is 1 in the PKM */
+        return pkm & (0x80 >> psw_key);
+    }
+    return true;
+}
+
+static inline int cpu_mmu_index(CPUS390XState *env, bool ifetch)
 {
     switch (env->psw.mask & PSW_MASK_ASC) {
     case PSW_ASC_PRIMARY:
@@ -396,8 +411,7 @@ static inline void cpu_get_tb_cpu_state(CPUS390XState* env, target_ulong *pc,
 {
     *pc = env->psw.addr;
     *cs_base = env->ex_value;
-    *flags = ((env->psw.mask >> 32) & ~FLAG_MASK_CC) |
-             ((env->psw.mask & PSW_MASK_32) ? FLAG_MASK_32 : 0);
+    *flags = (env->psw.mask >> FLAG_MASK_PSW_SHIFT) & FLAG_MASK_PSW;
 }
 
 #define MAX_ILEN 6
@@ -460,11 +474,6 @@ static inline bool get_per_in_range(CPUS390XState *env, uint64_t addr)
 }
 
 #ifndef CONFIG_USER_ONLY
-/* In several cases of runtime exceptions, we havn't recorded the true
-   instruction length.  Use these codes when raising exceptions in order
-   to re-compute the length by examining the insn in memory.  */
-#define ILEN_LATER       0x20
-#define ILEN_LATER_INC   0x21
 void trigger_pgm_exception(CPUS390XState *env, uint32_t code, uint32_t ilen);
 #endif
 
@@ -1133,6 +1142,8 @@ uint32_t set_cc_nz_f128(float128 v);
 int handle_diag_288(CPUS390XState *env, uint64_t r1, uint64_t r3);
 void handle_diag_308(CPUS390XState *env, uint64_t r1, uint64_t r3);
 #endif
+/* automatically detect the instruction length */
+#define ILEN_AUTO                   0xff
 void program_interrupt(CPUS390XState *env, uint32_t code, int ilen);
 void QEMU_NORETURN runtime_exception(CPUS390XState *env, int excp,
                                      uintptr_t retaddr);
