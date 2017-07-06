@@ -112,9 +112,6 @@ typedef struct PageDesc {
 #define V_L2_BITS 10
 #define V_L2_SIZE (1 << V_L2_BITS)
 
-uintptr_t qemu_host_page_size;
-intptr_t qemu_host_page_mask;
-
 /*
  * L1 Mapping properties
  */
@@ -361,21 +358,6 @@ bool cpu_restore_state(CPUState *cpu, uintptr_t retaddr)
     tb_unlock();
 
     return r;
-}
-
-void page_size_init(void)
-{
-    /* NOTE: we can always suppose that qemu_host_page_size >=
-       TARGET_PAGE_SIZE */
-    qemu_real_host_page_size = getpagesize();
-    qemu_real_host_page_mask = -(intptr_t)qemu_real_host_page_size;
-    if (qemu_host_page_size == 0) {
-        qemu_host_page_size = qemu_real_host_page_size;
-    }
-    if (qemu_host_page_size < TARGET_PAGE_SIZE) {
-        qemu_host_page_size = TARGET_PAGE_SIZE;
-    }
-    qemu_host_page_mask = -(intptr_t)qemu_host_page_size;
 }
 
 static void page_init(void)
@@ -802,6 +784,7 @@ static void tb_htable_init(void)
    size. */
 void tcg_exec_init(unsigned long tb_size)
 {
+    tcg_allowed = true;
     cpu_gen_init();
     page_init();
     tb_htable_init();
@@ -811,11 +794,6 @@ void tcg_exec_init(unsigned long tb_size)
        initialize the prologue now.  */
     tcg_prologue_init(&tcg_ctx);
 #endif
-}
-
-bool tcg_enabled(void)
-{
-    return tcg_ctx.code_gen_buffer != NULL;
 }
 
 /*
@@ -928,11 +906,7 @@ static void do_tb_flush(CPUState *cpu, run_on_cpu_data tb_flush_count)
     }
 
     CPU_FOREACH(cpu) {
-        int i;
-
-        for (i = 0; i < TB_JMP_CACHE_SIZE; ++i) {
-            atomic_set(&cpu->tb_jmp_cache[i], NULL);
-        }
+        cpu_tb_jmp_cache_clear(cpu);
     }
 
     tcg_ctx.tb_ctx.nb_tbs = 0;
@@ -1813,19 +1787,21 @@ void cpu_io_recompile(CPUState *cpu, uintptr_t retaddr)
     cpu_loop_exit_noexc(cpu);
 }
 
+static void tb_jmp_cache_clear_page(CPUState *cpu, target_ulong page_addr)
+{
+    unsigned int i, i0 = tb_jmp_cache_hash_page(page_addr);
+
+    for (i = 0; i < TB_JMP_PAGE_SIZE; i++) {
+        atomic_set(&cpu->tb_jmp_cache[i0 + i], NULL);
+    }
+}
+
 void tb_flush_jmp_cache(CPUState *cpu, target_ulong addr)
 {
-    unsigned int i;
-
     /* Discard jump cache entries for any tb which might potentially
        overlap the flushed page.  */
-    i = tb_jmp_cache_hash_page(addr - TARGET_PAGE_SIZE);
-    memset(&cpu->tb_jmp_cache[i], 0,
-           TB_JMP_PAGE_SIZE * sizeof(TranslationBlock *));
-
-    i = tb_jmp_cache_hash_page(addr);
-    memset(&cpu->tb_jmp_cache[i], 0,
-           TB_JMP_PAGE_SIZE * sizeof(TranslationBlock *));
+    tb_jmp_cache_clear_page(cpu, addr - TARGET_PAGE_SIZE);
+    tb_jmp_cache_clear_page(cpu, addr);
 }
 
 static void print_qht_statistics(FILE *f, fprintf_function cpu_fprintf,
@@ -1874,6 +1850,11 @@ void dump_exec_info(FILE *f, fprintf_function cpu_fprintf)
     struct qht_stats hst;
 
     tb_lock();
+
+    if (!tcg_enabled()) {
+        cpu_fprintf(f, "TCG not enabled\n");
+        return;
+    }
 
     target_code_size = 0;
     max_target_code_size = 0;
@@ -2225,3 +2206,11 @@ int page_unprotect(target_ulong address, uintptr_t pc)
     return 0;
 }
 #endif /* CONFIG_USER_ONLY */
+
+/* This is a wrapper for common code that can not use CONFIG_SOFTMMU */
+void tcg_flush_softmmu_tlb(CPUState *cs)
+{
+#ifdef CONFIG_SOFTMMU
+    tlb_flush(cs);
+#endif
+}

@@ -1162,8 +1162,8 @@ static int virtio_pci_add_mem_cap(VirtIOPCIProxy *proxy,
     PCIDevice *dev = &proxy->pci_dev;
     int offset;
 
-    offset = pci_add_capability(dev, PCI_CAP_ID_VNDR, 0, cap->cap_len);
-    assert(offset > 0);
+    offset = pci_add_capability(dev, PCI_CAP_ID_VNDR, 0,
+                                cap->cap_len, &error_abort);
 
     assert(cap->cap_len >= sizeof *cap);
     memcpy(dev->config + offset + PCI_CAP_FLAGS, &cap->cap_len,
@@ -1740,7 +1740,7 @@ static void virtio_pci_realize(PCIDevice *pci_dev, Error **errp)
     bool pcie_port = pci_bus_is_express(pci_dev->bus) &&
                      !pci_bus_is_root(pci_dev->bus);
 
-    if (!kvm_has_many_ioeventfds()) {
+    if (kvm_enabled() && !kvm_has_many_ioeventfds()) {
         proxy->flags &= ~VIRTIO_PCI_FLAG_USE_IOEVENTFD;
     }
 
@@ -1810,8 +1810,12 @@ static void virtio_pci_realize(PCIDevice *pci_dev, Error **errp)
         pos = pcie_endpoint_cap_init(pci_dev, 0);
         assert(pos > 0);
 
-        pos = pci_add_capability(pci_dev, PCI_CAP_ID_PM, 0, PCI_PM_SIZEOF);
-        assert(pos > 0);
+        pos = pci_add_capability(pci_dev, PCI_CAP_ID_PM, 0,
+                                 PCI_PM_SIZEOF, errp);
+        if (pos < 0) {
+            return;
+        }
+
         pci_dev->exp.pm_cap = pos;
 
         /*
