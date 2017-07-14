@@ -701,7 +701,7 @@ static int64_t coroutine_fn vpc_co_get_block_status(BlockDriverState *bs,
     if (be32_to_cpu(footer->type) == VHD_FIXED) {
         *pnum = nb_sectors;
         *file = bs->file->bs;
-        return BDRV_BLOCK_RAW | BDRV_BLOCK_OFFSET_VALID | BDRV_BLOCK_DATA |
+        return BDRV_BLOCK_RAW | BDRV_BLOCK_OFFSET_VALID |
                (sector_num << BDRV_SECTOR_BITS);
     }
 
@@ -858,7 +858,7 @@ static int create_fixed_disk(BlockBackend *blk, uint8_t *buf,
     /* Add footer to total size */
     total_size += HEADER_SIZE;
 
-    ret = blk_truncate(blk, total_size, errp);
+    ret = blk_truncate(blk, total_size, PREALLOC_MODE_OFF, errp);
     if (ret < 0) {
         return ret;
     }
