@@ -877,8 +877,7 @@ static inline void gen_op_arith_add(DisasContext *ctx, TCGv ret, TCGv arg1,
             }
             tcg_gen_xor_tl(cpu_ca, t0, t1);        /* bits changed w/ carry */
             tcg_temp_free(t1);
-            tcg_gen_shri_tl(cpu_ca, cpu_ca, 32);   /* extract bit 32 */
-            tcg_gen_andi_tl(cpu_ca, cpu_ca, 1);
+            tcg_gen_extract_tl(cpu_ca, cpu_ca, 32, 1);
             if (is_isa300(ctx)) {
                 tcg_gen_mov_tl(cpu_ca32, cpu_ca);
             }
@@ -1408,8 +1407,7 @@ static inline void gen_op_arith_subf(DisasContext *ctx, TCGv ret, TCGv arg1,
             tcg_temp_free(inv1);
             tcg_gen_xor_tl(cpu_ca, t0, t1);         /* bits changes w/ carry */
             tcg_temp_free(t1);
-            tcg_gen_shri_tl(cpu_ca, cpu_ca, 32);    /* extract bit 32 */
-            tcg_gen_andi_tl(cpu_ca, cpu_ca, 1);
+            tcg_gen_extract_tl(cpu_ca, cpu_ca, 32, 1);
             if (is_isa300(ctx)) {
                 tcg_gen_mov_tl(cpu_ca32, cpu_ca);
             }
@@ -4359,8 +4357,7 @@ static void gen_mfsrin(DisasContext *ctx)
 
     CHK_SV;
     t0 = tcg_temp_new();
-    tcg_gen_shri_tl(t0, cpu_gpr[rB(ctx->opcode)], 28);
-    tcg_gen_andi_tl(t0, t0, 0xF);
+    tcg_gen_extract_tl(t0, cpu_gpr[rB(ctx->opcode)], 28, 4);
     gen_helper_load_sr(cpu_gpr[rD(ctx->opcode)], cpu_env, t0);
     tcg_temp_free(t0);
 #endif /* defined(CONFIG_USER_ONLY) */
@@ -4391,8 +4388,7 @@ static void gen_mtsrin(DisasContext *ctx)
     CHK_SV;
 
     t0 = tcg_temp_new();
-    tcg_gen_shri_tl(t0, cpu_gpr[rB(ctx->opcode)], 28);
-    tcg_gen_andi_tl(t0, t0, 0xF);
+    tcg_gen_extract_tl(t0, cpu_gpr[rB(ctx->opcode)], 28, 4);
     gen_helper_store_sr(cpu_env, t0, cpu_gpr[rD(ctx->opcode)]);
     tcg_temp_free(t0);
 #endif /* defined(CONFIG_USER_ONLY) */
@@ -4426,8 +4422,7 @@ static void gen_mfsrin_64b(DisasContext *ctx)
 
     CHK_SV;
     t0 = tcg_temp_new();
-    tcg_gen_shri_tl(t0, cpu_gpr[rB(ctx->opcode)], 28);
-    tcg_gen_andi_tl(t0, t0, 0xF);
+    tcg_gen_extract_tl(t0, cpu_gpr[rB(ctx->opcode)], 28, 4);
     gen_helper_load_sr(cpu_gpr[rD(ctx->opcode)], cpu_env, t0);
     tcg_temp_free(t0);
 #endif /* defined(CONFIG_USER_ONLY) */
@@ -4458,8 +4453,7 @@ static void gen_mtsrin_64b(DisasContext *ctx)
 
     CHK_SV;
     t0 = tcg_temp_new();
-    tcg_gen_shri_tl(t0, cpu_gpr[rB(ctx->opcode)], 28);
-    tcg_gen_andi_tl(t0, t0, 0xF);
+    tcg_gen_extract_tl(t0, cpu_gpr[rB(ctx->opcode)], 28, 4);
     gen_helper_store_sr(cpu_env, t0, cpu_gpr[rS(ctx->opcode)]);
     tcg_temp_free(t0);
 #endif /* defined(CONFIG_USER_ONLY) */
@@ -5476,8 +5470,7 @@ static void gen_mfsri(DisasContext *ctx)
     CHK_SV;
     t0 = tcg_temp_new();
     gen_addr_reg_index(ctx, t0);
-    tcg_gen_shri_tl(t0, t0, 28);
-    tcg_gen_andi_tl(t0, t0, 0xF);
+    tcg_gen_extract_tl(t0, t0, 28, 4);
     gen_helper_load_sr(cpu_gpr[rd], cpu_env, t0);
     tcg_temp_free(t0);
     if (ra != 0 && ra != rd)
@@ -7265,10 +7258,9 @@ void ppc_cpu_dump_statistics(CPUState *cs, FILE*f,
 }
 
 /*****************************************************************************/
-void gen_intermediate_code(CPUPPCState *env, struct TranslationBlock *tb)
+void gen_intermediate_code(CPUState *cs, struct TranslationBlock *tb)
 {
-    PowerPCCPU *cpu = ppc_env_get_cpu(env);
-    CPUState *cs = CPU(cpu);
+    CPUPPCState *env = cs->env_ptr;
     DisasContext ctx, *ctxp = &ctx;
     opc_handler_t **table, *handler;
     target_ulong pc_start;

@@ -375,6 +375,7 @@ libnfs=""
 coroutine=""
 coroutine_pool=""
 debug_stack_usage="no"
+crypto_afalg="no"
 seccomp=""
 glusterfs=""
 glusterfs_xlator_opt="no"
@@ -1124,6 +1125,10 @@ for opt do
   ;;
   --enable-debug-stack-usage) debug_stack_usage="yes"
   ;;
+  --enable-crypto-afalg) crypto_afalg="yes"
+  ;;
+  --disable-crypto-afalg) crypto_afalg="no"
+  ;;
   --disable-docs) docs="no"
   ;;
   --enable-docs) docs="yes"
@@ -1518,6 +1523,7 @@ disabled with --disable-FEATURE, default is enabled if available:
   qom-cast-debug  cast debugging support
   tools           build qemu-io, qemu-nbd and qemu-image tools
   vxhs            Veritas HyperScale vDisk backend support
+  crypto-afalg    Linux AF_ALG crypto backend driver
 
 NOTE: The object files are built at the place where configure is launched
 EOF
@@ -1588,7 +1594,7 @@ gcc_flags="-Wold-style-declaration -Wold-style-definition -Wtype-limits"
 gcc_flags="-Wformat-security -Wformat-y2k -Winit-self -Wignored-qualifiers $gcc_flags"
 gcc_flags="-Wno-missing-include-dirs -Wempty-body -Wnested-externs $gcc_flags"
 gcc_flags="-Wendif-labels -Wno-shift-negative-value $gcc_flags"
-gcc_flags="-Wno-initializer-overrides $gcc_flags"
+gcc_flags="-Wno-initializer-overrides -Wexpansion-to-defined $gcc_flags"
 gcc_flags="-Wno-string-plus-int $gcc_flags"
 # Note that we do not add -Werror to gcc_flags here, because that would
 # enable it for all configure tests. If a configure test failed due
@@ -2110,6 +2116,24 @@ EOF
       xen=no
 
     # Xen unstable
+    elif
+        cat > $TMPC <<EOF &&
+#undef XC_WANT_COMPAT_MAP_FOREIGN_API
+#include <xenforeignmemory.h>
+int main(void) {
+  xenforeignmemory_handle *xfmem;
+
+  xfmem = xenforeignmemory_open(0, 0);
+  xenforeignmemory_map2(xfmem, 0, 0, 0, 0, 0, 0, 0);
+
+  return 0;
+}
+EOF
+        compile_prog "" "$xen_libs -lxendevicemodel $xen_stable_libs"
+      then
+      xen_stable_libs="-lxendevicemodel $xen_stable_libs"
+      xen_ctrl_version=41000
+      xen=yes
     elif
         cat > $TMPC <<EOF &&
 #undef XC_WANT_COMPAT_DEVICEMODEL_API
@@ -4839,6 +4863,32 @@ if compile_prog "" "" ; then
     have_af_vsock=yes
 fi
 
+##########################################
+# check for usable AF_ALG environment
+hava_afalg=no
+cat > $TMPC << EOF
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <linux/if_alg.h>
+int main(void) {
+    int sock;
+    sock = socket(AF_ALG, SOCK_SEQPACKET, 0);
+    return sock;
+}
+EOF
+if compile_prog "" "" ; then
+    have_afalg=yes
+fi
+if test "$crypto_afalg" = "yes"
+then
+    if test "$have_afalg" != "yes"
+    then
+	error_exit "AF_ALG requested but could not be detected"
+    fi
+fi
+
+
 #################################################
 # Sparc implicitly links with --relax, which is
 # incompatible with -r, so --no-relax should be
@@ -4920,6 +4970,21 @@ if compile_prog "" "" ; then
 fi
 
 ##########################################
+# check for utmpx.h, it is missing e.g. on OpenBSD
+
+have_utmpx=no
+cat > $TMPC << EOF
+#include <utmpx.h>
+struct utmpx user_info;
+int main(void) {
+    return 0;
+}
+EOF
+if compile_prog "" "" ; then
+    have_utmpx=yes
+fi
+
+##########################################
 # End of CC checks
 # After here, no more $cc or $ld runs
 
@@ -4978,11 +5043,18 @@ qemu_moddir=$libdir$confsuffix
 qemu_datadir=$datadir$confsuffix
 qemu_localedir="$datadir/locale"
 
+# We can only support ivshmem if we have eventfd
+if [ "$eventfd" = "yes" ]; then
+  ivshmem=yes
+fi
+
 tools=""
 if test "$want_tools" = "yes" ; then
   tools="qemu-img\$(EXESUF) qemu-io\$(EXESUF) $tools"
   if [ "$linux" = "yes" -o "$bsd" = "yes" -o "$solaris" = "yes" ] ; then
     tools="qemu-nbd\$(EXESUF) $tools"
+  fi
+  if [ "$ivshmem" = "yes" ]; then
     tools="ivshmem-client\$(EXESUF) ivshmem-server\$(EXESUF) $tools"
   fi
 fi
@@ -5308,6 +5380,7 @@ echo "seccomp support   $seccomp"
 echo "coroutine backend $coroutine"
 echo "coroutine pool    $coroutine_pool"
 echo "debug stack usage $debug_stack_usage"
+echo "crypto afalg      $crypto_afalg"
 echo "GlusterFS support $glusterfs"
 echo "gcov              $gcov_tool"
 echo "gcov enabled      $gcov"
@@ -5819,6 +5892,10 @@ if test "$debug_stack_usage" = "yes" ; then
   echo "CONFIG_DEBUG_STACK_USAGE=y" >> $config_host_mak
 fi
 
+if test "$crypto_afalg" = "yes" ; then
+  echo "CONFIG_AF_ALG=y" >> $config_host_mak
+fi
+
 if test "$open_by_handle_at" = "yes" ; then
   echo "CONFIG_OPEN_BY_HANDLE=y" >> $config_host_mak
 fi
@@ -5965,6 +6042,14 @@ fi
 
 if test "$have_static_assert" = "yes" ; then
   echo "CONFIG_STATIC_ASSERT=y" >> $config_host_mak
+fi
+
+if test "$have_utmpx" = "yes" ; then
+  echo "HAVE_UTMPX=y" >> $config_host_mak
+fi
+
+if test "$ivshmem" = "yes" ; then
+  echo "CONFIG_IVSHMEM=y" >> $config_host_mak
 fi
 
 # Hold two types of flag:
@@ -6239,7 +6324,7 @@ case "$target_name" in
     echo "TARGET_ABI32=y" >> $config_target_mak
   ;;
   s390x)
-    gdb_xml_files="s390x-core64.xml s390-acr.xml s390-fpr.xml s390-vx.xml s390-cr.xml s390-virt.xml"
+    gdb_xml_files="s390x-core64.xml s390-acr.xml s390-fpr.xml s390-vx.xml s390-cr.xml s390-virt.xml s390-gs.xml"
   ;;
   tilegx)
   ;;
