@@ -358,6 +358,7 @@ libusb=""
 usb_redir=""
 opengl=""
 opengl_dmabuf="no"
+cpuid_h="no"
 avx2_opt="no"
 zlib="yes"
 lzo=""
@@ -537,8 +538,24 @@ elif check_define __sun__ ; then
   targetos='SunOS'
 elif check_define __HAIKU__ ; then
   targetos='Haiku'
+elif check_define __FreeBSD__ ; then
+  targetos='FreeBSD'
+elif check_define __FreeBSD_kernel__ && check_define __GLIBC__; then
+  targetos='GNU/kFreeBSD'
+elif check_define __DragonFly__ ; then
+  targetos='DragonFly'
+elif check_define __NetBSD__; then
+  targetos='NetBSD'
+elif check_define __APPLE__; then
+  targetos='Darwin'
+elif check_define _AIX; then
+  targetos='AIX'
 else
-  targetos=$(uname -s)
+  # This is a fatal error, but don't report it yet, because we
+  # might be going to just print the --help text, or it might
+  # be the result of a missing compiler.
+  targetos='bogus'
+  bogus_os='yes'
 fi
 
 # Some host OSes need non-standard checks for which CPU to use.
@@ -731,23 +748,6 @@ SunOS)
   install="${INSTALL-ginstall}"
   ld="gld"
   smbd="${SMBD-/usr/sfw/sbin/smbd}"
-  needs_libsunmath="no"
-  solarisrev=$(uname -r | cut -f2 -d.)
-  if [ "$cpu" = "i386" -o "$cpu" = "x86_64" ] ; then
-    if test "$solarisrev" -le 9 ; then
-      if test -f /opt/SUNWspro/prod/lib/libsunmath.so.1; then
-        needs_libsunmath="yes"
-        QEMU_CFLAGS="-I/opt/SUNWspro/prod/include/cc $QEMU_CFLAGS"
-        LDFLAGS="-L/opt/SUNWspro/prod/lib -R/opt/SUNWspro/prod/lib $LDFLAGS"
-        LIBS="-lsunmath $LIBS"
-      else
-        error_exit "QEMU will not link correctly on Solaris 8/X86 or 9/x86 without" \
-            "libsunmath from the Sun Studio compilers tools, due to a lack of" \
-            "C99 math features in libm.so in Solaris 8/x86 and Solaris 9/x86" \
-            "Studio 11 can be downloaded from www.sun.com."
-      fi
-    fi
-  fi
   if test -f /usr/include/sys/soundcard.h ; then
     audio_drv_list="oss"
   fi
@@ -781,12 +781,6 @@ Linux)
   vhost_vsock="yes"
   QEMU_INCLUDES="-I\$(SRC_PATH)/linux-headers -I$(pwd)/linux-headers $QEMU_INCLUDES"
   supported_os="yes"
-;;
-*)
-  # This is a fatal error, but don't report it yet, because we
-  # might be going to just print the --help text, or it might
-  # be the result of a missing compiler.
-  bogus_os="yes"
 ;;
 esac
 
@@ -1587,7 +1581,7 @@ if test "$bogus_os" = "yes"; then
     # the compiler works (so the results of the check_defines we used
     # to identify the OS are reliable), if we didn't recognize the
     # host OS we should stop now.
-    error_exit "Unrecognized host OS $targetos"
+    error_exit "Unrecognized host OS (uname -s reports '$(uname -s)')"
 fi
 
 gcc_flags="-Wold-style-declaration -Wold-style-definition -Wtype-limits"
@@ -1941,24 +1935,6 @@ EOF
   if ! compile_object ; then
     feature_not_found "nptl" "Install glibc and linux kernel headers."
   fi
-fi
-
-##########################################
-# avx2 optimization requirement check
-
-cat > $TMPC << EOF
-#pragma GCC push_options
-#pragma GCC target("avx2")
-#include <cpuid.h>
-#include <immintrin.h>
-static int bar(void *a) {
-    __m256i x = *(__m256i *)a;
-    return _mm256_testz_si256(x, x);
-}
-int main(int argc, char *argv[]) { return bar(argv[0]); }
-EOF
-if compile_object "" ; then
-  avx2_opt="yes"
 fi
 
 #########################################
@@ -4658,7 +4634,6 @@ fi
 ########################################
 # check if cpuid.h is usable.
 
-cpuid_h=no
 cat > $TMPC << EOF
 #include <cpuid.h>
 int main(void) {
@@ -4678,6 +4653,29 @@ int main(void) {
 EOF
 if compile_prog "" "" ; then
     cpuid_h=yes
+fi
+
+##########################################
+# avx2 optimization requirement check
+#
+# There is no point enabling this if cpuid.h is not usable,
+# since we won't be able to select the new routines.
+
+if test $cpuid_h = yes; then
+  cat > $TMPC << EOF
+#pragma GCC push_options
+#pragma GCC target("avx2")
+#include <cpuid.h>
+#include <immintrin.h>
+static int bar(void *a) {
+    __m256i x = *(__m256i *)a;
+    return _mm256_testz_si256(x, x);
+}
+int main(int argc, char *argv[]) { return bar(argv[0]); }
+EOF
+  if compile_object "" ; then
+    avx2_opt="yes"
+  fi
 fi
 
 ########################################
@@ -5515,10 +5513,6 @@ fi
 
 if test "$solaris" = "yes" ; then
   echo "CONFIG_SOLARIS=y" >> $config_host_mak
-  echo "CONFIG_SOLARIS_VERSION=$solarisrev" >> $config_host_mak
-  if test "$needs_libsunmath" = "yes" ; then
-    echo "CONFIG_NEEDS_LIBSUNMATH=y" >> $config_host_mak
-  fi
 fi
 if test "$haiku" = "yes" ; then
   echo "CONFIG_HAIKU=y" >> $config_host_mak
