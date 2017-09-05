@@ -42,7 +42,6 @@
 #include "qapi-event.h"
 #include "qemu/cutils.h"
 #include "qemu/id.h"
-#include "qapi/util.h"
 
 #ifdef CONFIG_BSD
 #include <sys/ioctl.h>
@@ -1333,9 +1332,8 @@ static int bdrv_open_common(BlockDriverState *bs, BlockBackend *file,
     detect_zeroes = qemu_opt_get(opts, "detect-zeroes");
     if (detect_zeroes) {
         BlockdevDetectZeroesOptions value =
-            qapi_enum_parse(BlockdevDetectZeroesOptions_lookup,
+            qapi_enum_parse(&BlockdevDetectZeroesOptions_lookup,
                             detect_zeroes,
-                            BLOCKDEV_DETECT_ZEROES_OPTIONS__MAX,
                             BLOCKDEV_DETECT_ZEROES_OPTIONS_OFF,
                             &local_err);
         if (local_err) {
@@ -4085,20 +4083,19 @@ static int bdrv_inactivate_recurse(BlockDriverState *bs,
         }
     }
 
-    if (setting_flag) {
+    if (setting_flag && !(bs->open_flags & BDRV_O_INACTIVE)) {
         uint64_t perm, shared_perm;
-
-        bs->open_flags |= BDRV_O_INACTIVE;
 
         QLIST_FOREACH(parent, &bs->parents, next_parent) {
             if (parent->role->inactivate) {
                 ret = parent->role->inactivate(parent);
                 if (ret < 0) {
-                    bs->open_flags &= ~BDRV_O_INACTIVE;
                     return ret;
                 }
             }
         }
+
+        bs->open_flags |= BDRV_O_INACTIVE;
 
         /* Update permissions, they may differ for inactive nodes */
         bdrv_get_cumulative_perm(bs, &perm, &shared_perm);

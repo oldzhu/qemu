@@ -43,6 +43,8 @@ check-unit-y += tests/check-qnull$(EXESUF)
 gcov-files-check-qnull-y = qobject/qnull.c
 check-unit-y += tests/check-qjson$(EXESUF)
 gcov-files-check-qjson-y = qobject/qjson.c
+check-unit-y += tests/check-qlit$(EXESUF)
+gcov-files-check-qlit-y = qobject/qlit.c
 check-unit-y += tests/test-qobject-output-visitor$(EXESUF)
 gcov-files-test-qobject-output-visitor-y = qapi/qobject-output-visitor.c
 check-unit-y += tests/test-clone-visitor$(EXESUF)
@@ -283,8 +285,8 @@ ifeq ($(CONFIG_VHOST_USER_NET_TEST_i386),)
 check-qtest-x86_64-$(CONFIG_VHOST_USER_NET_TEST_x86_64) += tests/vhost-user-test$(EXESUF)
 endif
 check-qtest-i386-$(CONFIG_SLIRP) += tests/test-netfilter$(EXESUF)
-check-qtest-i386-y += tests/test-filter-mirror$(EXESUF)
-check-qtest-i386-y += tests/test-filter-redirector$(EXESUF)
+check-qtest-i386-$(CONFIG_POSIX) += tests/test-filter-mirror$(EXESUF)
+check-qtest-i386-$(CONFIG_POSIX) += tests/test-filter-redirector$(EXESUF)
 check-qtest-i386-y += tests/postcopy-test$(EXESUF)
 check-qtest-i386-y += tests/test-x86-cpuid-compat$(EXESUF)
 check-qtest-i386-y += tests/numa-test$(EXESUF)
@@ -325,8 +327,8 @@ check-qtest-ppc64-y += tests/usb-hcd-xhci-test$(EXESUF)
 gcov-files-ppc64-y += hw/usb/hcd-xhci.c
 check-qtest-ppc64-y += $(check-qtest-virtio-y)
 check-qtest-ppc64-$(CONFIG_SLIRP) += tests/test-netfilter$(EXESUF)
-check-qtest-ppc64-y += tests/test-filter-mirror$(EXESUF)
-check-qtest-ppc64-y += tests/test-filter-redirector$(EXESUF)
+check-qtest-ppc64-$(CONFIG_POSIX) += tests/test-filter-mirror$(EXESUF)
+check-qtest-ppc64-$(CONFIG_POSIX) += tests/test-filter-redirector$(EXESUF)
 check-qtest-ppc64-y += tests/display-vga-test$(EXESUF)
 check-qtest-ppc64-y += tests/numa-test$(EXESUF)
 check-qtest-ppc64-$(CONFIG_IVSHMEM) += tests/ivshmem-test$(EXESUF)
@@ -360,6 +362,10 @@ check-qtest-microblazeel-y = $(check-qtest-microblaze-y)
 check-qtest-xtensaeb-y = $(check-qtest-xtensa-y)
 
 check-qtest-s390x-y = tests/boot-serial-test$(EXESUF)
+check-qtest-s390x-$(CONFIG_SLIRP) += tests/pxe-test$(EXESUF)
+check-qtest-s390x-$(CONFIG_SLIRP) += tests/test-netfilter$(EXESUF)
+check-qtest-s390x-$(CONFIG_POSIX) += tests/test-filter-mirror$(EXESUF)
+check-qtest-s390x-$(CONFIG_POSIX) += tests/test-filter-redirector$(EXESUF)
 
 check-qtest-generic-y += tests/qom-test$(EXESUF)
 check-qtest-generic-y += tests/test-hmp$(EXESUF)
@@ -372,6 +378,8 @@ qapi-schema += alternate-conflict-dict.json
 qapi-schema += alternate-conflict-enum-bool.json
 qapi-schema += alternate-conflict-enum-int.json
 qapi-schema += alternate-conflict-string.json
+qapi-schema += alternate-conflict-bool-string.json
+qapi-schema += alternate-conflict-num-string.json
 qapi-schema += alternate-empty.json
 qapi-schema += alternate-nested.json
 qapi-schema += alternate-unknown.json
@@ -535,7 +543,7 @@ GENERATED_FILES += tests/test-qapi-types.h tests/test-qapi-visit.h \
 
 test-obj-y = tests/check-qnum.o tests/check-qstring.o tests/check-qdict.o \
 	tests/check-qlist.o tests/check-qnull.o \
-	tests/check-qjson.o \
+	tests/check-qjson.o tests/check-qlit.o \
 	tests/test-coroutine.o tests/test-string-output-visitor.o \
 	tests/test-string-input-visitor.o tests/test-qobject-output-visitor.o \
 	tests/test-clone-visitor.o \
@@ -569,6 +577,7 @@ tests/check-qdict$(EXESUF): tests/check-qdict.o $(test-util-obj-y)
 tests/check-qlist$(EXESUF): tests/check-qlist.o $(test-util-obj-y)
 tests/check-qnull$(EXESUF): tests/check-qnull.o $(test-util-obj-y)
 tests/check-qjson$(EXESUF): tests/check-qjson.o $(test-util-obj-y)
+tests/check-qlit$(EXESUF): tests/check-qlit.o $(test-util-obj-y)
 tests/check-qom-interface$(EXESUF): tests/check-qom-interface.o $(test-qom-obj-y)
 tests/check-qom-proplist$(EXESUF): tests/check-qom-proplist.o $(test-qom-obj-y)
 
