@@ -187,6 +187,13 @@ static void arm_cpu_reset(CPUState *s)
 
         if (arm_feature(env, ARM_FEATURE_M_SECURITY)) {
             env->v7m.secure = true;
+        } else {
+            /* This bit resets to 0 if security is supported, but 1 if
+             * it is not. The bit is not present in v7M, but we set it
+             * here so we can avoid having to make checks on it conditional
+             * on ARM_FEATURE_V8 (we don't let the guest see the bit).
+             */
+            env->v7m.aircr = R_V7M_AIRCR_BFHFNMINS_MASK;
         }
 
         /* In v7M the reset value of this bit is IMPDEF, but ARM recommends
@@ -234,6 +241,12 @@ static void arm_cpu_reset(CPUState *s)
     if (A32_BANKED_CURRENT_REG_GET(env, sctlr) & SCTLR_V) {
         env->regs[15] = 0xFFFF0000;
     }
+
+    /* M profile requires that reset clears the exclusive monitor;
+     * A profile does not, but clearing it makes more sense than having it
+     * set with an exclusive access on address zero.
+     */
+    arm_clear_exclusive(env);
 
     env->vfp.xregs[ARM_VFP_FPEXC] = 0;
 #endif
@@ -905,7 +918,7 @@ static ObjectClass *arm_cpu_class_by_name(const char *cpu_model)
     }
 
     cpuname = g_strsplit(cpu_model, ",", 1);
-    typename = g_strdup_printf("%s-" TYPE_ARM_CPU, cpuname[0]);
+    typename = g_strdup_printf(ARM_CPU_TYPE_NAME("%s"), cpuname[0]);
     oc = object_class_by_name(typename);
     g_strfreev(cpuname);
     g_free(typename);

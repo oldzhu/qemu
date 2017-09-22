@@ -391,10 +391,8 @@ static int spapr_fixup_cpu_dt(void *fdt, sPAPRMachineState *spapr)
     return ret;
 }
 
-static hwaddr spapr_node0_size(void)
+static hwaddr spapr_node0_size(MachineState *machine)
 {
-    MachineState *machine = MACHINE(qdev_get_machine());
-
     if (nb_numa_nodes) {
         int i;
         for (i = 0; i < nb_numa_nodes; ++i) {
@@ -939,7 +937,7 @@ static void spapr_dt_ov5_platform_support(void *fdt, int chosen)
     PowerPCCPU *first_ppc_cpu = POWERPC_CPU(first_cpu);
 
     char val[2 * 4] = {
-        23, 0x00, /* Xive mode: 0 = legacy (as in ISA 2.7), 1 = Exploitation */
+        23, 0x00, /* Xive mode, filled in below. */
         24, 0x00, /* Hash/Radix, filled in below. */
         25, 0x00, /* Hash options: Segment Tables == no, GTSE == no. */
         26, 0x40, /* Radix options: GTSE == yes. */
@@ -1052,7 +1050,7 @@ static void *spapr_build_fdt(sPAPRMachineState *spapr,
                              hwaddr rtas_addr,
                              hwaddr rtas_size)
 {
-    MachineState *machine = MACHINE(qdev_get_machine());
+    MachineState *machine = MACHINE(spapr);
     MachineClass *mc = MACHINE_GET_CLASS(machine);
     sPAPRMachineClass *smc = SPAPR_MACHINE_GET_CLASS(machine);
     int ret;
@@ -1372,7 +1370,7 @@ void spapr_setup_hpt_and_vrma(sPAPRMachineState *spapr)
     spapr_reallocate_hpt(spapr, hpt_shift, &error_fatal);
 
     if (spapr->vrma_adjust) {
-        spapr->rma_size = kvmppc_rma_size(spapr_node0_size(),
+        spapr->rma_size = kvmppc_rma_size(spapr_node0_size(MACHINE(spapr)),
                                           spapr->htab_shift);
     }
     /* We're setting up a hash table, so that means we're not radix */
@@ -2033,7 +2031,7 @@ static SaveVMHandlers savevm_htab_handlers = {
 static void spapr_boot_set(void *opaque, const char *boot_device,
                            Error **errp)
 {
-    MachineState *machine = MACHINE(qdev_get_machine());
+    MachineState *machine = MACHINE(opaque);
     machine->boot_order = g_strdup(boot_device);
 }
 
@@ -2235,7 +2233,7 @@ static void ppc_spapr_init(MachineState *machine)
     MemoryRegion *rma_region;
     void *rma = NULL;
     hwaddr rma_alloc_size;
-    hwaddr node0_size = spapr_node0_size();
+    hwaddr node0_size = spapr_node0_size(machine);
     long load_limit, fw_size;
     char *filename;
     Error *resize_hpt_err = NULL;
@@ -3298,7 +3296,8 @@ out:
 static void spapr_machine_device_plug(HotplugHandler *hotplug_dev,
                                       DeviceState *dev, Error **errp)
 {
-    sPAPRMachineClass *smc = SPAPR_MACHINE_GET_CLASS(qdev_get_machine());
+    MachineState *ms = MACHINE(hotplug_dev);
+    sPAPRMachineClass *smc = SPAPR_MACHINE_GET_CLASS(ms);
 
     if (object_dynamic_cast(OBJECT(dev), TYPE_PC_DIMM)) {
         int node;
@@ -3347,8 +3346,8 @@ static void spapr_machine_device_plug(HotplugHandler *hotplug_dev,
 static void spapr_machine_device_unplug_request(HotplugHandler *hotplug_dev,
                                                 DeviceState *dev, Error **errp)
 {
-    sPAPRMachineState *sms = SPAPR_MACHINE(qdev_get_machine());
-    MachineClass *mc = MACHINE_GET_CLASS(qdev_get_machine());
+    sPAPRMachineState *sms = SPAPR_MACHINE(OBJECT(hotplug_dev));
+    MachineClass *mc = MACHINE_GET_CLASS(sms);
 
     if (object_dynamic_cast(OBJECT(dev), TYPE_PC_DIMM)) {
         if (spapr_ovec_test(sms->ov5_cas, OV5_HP_EVT)) {
@@ -3405,6 +3404,11 @@ spapr_cpu_index_to_props(MachineState *machine, unsigned cpu_index)
     return core_slot->props;
 }
 
+static int64_t spapr_get_default_cpu_node_id(const MachineState *ms, int idx)
+{
+    return idx / smp_cores % nb_numa_nodes;
+}
+
 static const CPUArchIdList *spapr_possible_cpu_arch_ids(MachineState *machine)
 {
     int i;
@@ -3429,15 +3433,6 @@ static const CPUArchIdList *spapr_possible_cpu_arch_ids(MachineState *machine)
         machine->possible_cpus->cpus[i].arch_id = core_id;
         machine->possible_cpus->cpus[i].props.has_core_id = true;
         machine->possible_cpus->cpus[i].props.core_id = core_id;
-
-        /* default distribution of CPUs over NUMA nodes */
-        if (nb_numa_nodes) {
-            /* preset values but do not enable them i.e. 'has_node_id = false',
-             * numa init code will enable them later if manual mapping wasn't
-             * present on CLI */
-            machine->possible_cpus->cpus[i].props.node_id =
-                core_id / smp_threads / smp_cores % nb_numa_nodes;
-        }
     }
     return machine->possible_cpus;
 }
@@ -3588,6 +3583,7 @@ static void spapr_machine_class_init(ObjectClass *oc, void *data)
     hc->pre_plug = spapr_machine_device_pre_plug;
     hc->plug = spapr_machine_device_plug;
     mc->cpu_index_to_instance_props = spapr_cpu_index_to_props;
+    mc->get_default_cpu_node_id = spapr_get_default_cpu_node_id;
     mc->possible_cpu_arch_ids = spapr_possible_cpu_arch_ids;
     hc->unplug_request = spapr_machine_device_unplug_request;
 

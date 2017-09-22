@@ -388,10 +388,10 @@ struct CPUState {
     DECLARE_BITMAP(trace_dstate, CPU_TRACE_DSTATE_MAX_EVENTS);
 
     /* TODO Move common fields from CPUArchState here. */
-    int cpu_index; /* used by alpha TCG */
-    uint32_t halted; /* used by alpha, cris, ppc TCG */
+    int cpu_index;
+    uint32_t halted;
     uint32_t can_do_io;
-    int32_t exception_index; /* used by m68k TCG */
+    int32_t exception_index;
 
     /* shared by kvm, hax and hvf */
     bool vcpu_dirty;
@@ -643,6 +643,28 @@ void cpu_reset(CPUState *cpu);
  * Returns: A #CPUClass or %NULL if not matching class is found.
  */
 ObjectClass *cpu_class_by_name(const char *typename, const char *cpu_model);
+
+/**
+ * cpu_create:
+ * @typename: The CPU type.
+ *
+ * Instantiates a CPU and realizes the CPU.
+ *
+ * Returns: A #CPUState or %NULL if an error occurred.
+ */
+CPUState *cpu_create(const char *typename);
+
+/**
+ * cpu_parse_cpu_model:
+ * @typename: The CPU base type or CPU type.
+ * @cpu_model: The model string including optional parameters.
+ *
+ * processes optional parameters and registers them as global properties
+ *
+ * Returns: type of CPU to create or prints error and terminates process
+ *          if an error occurred.
+ */
+const char *cpu_parse_cpu_model(const char *typename, const char *cpu_model);
 
 /**
  * cpu_generic_init:
