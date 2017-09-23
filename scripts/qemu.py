@@ -89,6 +89,9 @@ class QEMUMachine(object):
         self._qmp = None
         self._qemu_full_args = None
 
+        # just in case logging wasn't configured by the main script:
+        logging.basicConfig(level=(logging.DEBUG if debug else logging.WARN))
+
     def __enter__(self):
         return self
 
@@ -214,6 +217,13 @@ class QEMUMachine(object):
             if self._iolog:
                 LOG.debug('Output: %r', self._iolog)
             raise
+
+    def wait(self):
+        '''Wait for the VM to power off'''
+        self._popen.wait()
+        self._qmp.close()
+        self._load_io_log()
+        self._post_shutdown()
 
     def shutdown(self):
         '''Terminate the VM and clean up'''
