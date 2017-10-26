@@ -1000,6 +1000,7 @@ void hmp_info_tpm(Monitor *mon, const QDict *qdict)
     Error *err = NULL;
     unsigned int c = 0;
     TPMPassthroughOptions *tpo;
+    TPMEmulatorOptions *teo;
 
     info_list = qmp_query_tpm(&err);
     if (err) {
@@ -1028,6 +1029,10 @@ void hmp_info_tpm(Monitor *mon, const QDict *qdict)
                            tpo->has_path ? tpo->path : "",
                            tpo->has_cancel_path ? ",cancel-path=" : "",
                            tpo->has_cancel_path ? tpo->cancel_path : "");
+            break;
+        case TPM_TYPE_OPTIONS_KIND_EMULATOR:
+            teo = ti->options->u.emulator.data;
+            monitor_printf(mon, ",chardev=%s", teo->chardev);
             break;
         case TPM_TYPE_OPTIONS_KIND__MAX:
             break;
@@ -1488,6 +1493,19 @@ void hmp_info_snapshots(Monitor *mon, const QDict *qdict)
 void hmp_migrate_cancel(Monitor *mon, const QDict *qdict)
 {
     qmp_migrate_cancel(NULL);
+}
+
+void hmp_migrate_continue(Monitor *mon, const QDict *qdict)
+{
+    Error *err = NULL;
+    const char *state = qdict_get_str(qdict, "state");
+    int val = qapi_enum_parse(&MigrationStatus_lookup, state, -1, &err);
+
+    if (val >= 0) {
+        qmp_migrate_continue(val, &err);
+    }
+
+    hmp_handle_error(mon, &err);
 }
 
 void hmp_migrate_incoming(Monitor *mon, const QDict *qdict)
