@@ -11400,16 +11400,21 @@ static void aarch64_tr_tb_stop(DisasContextBase *dcbase, CPUState *cpu)
             gen_helper_yield(cpu_env);
             break;
         case DISAS_WFI:
+        {
             /* This is a special case because we don't want to just halt the CPU
              * if trying to debug across a WFI.
              */
+            TCGv_i32 tmp = tcg_const_i32(4);
+
             gen_a64_set_pc_im(dc->pc);
-            gen_helper_wfi(cpu_env);
+            gen_helper_wfi(cpu_env, tmp);
+            tcg_temp_free_i32(tmp);
             /* The helper doesn't necessarily throw an exception, but we
              * must go back to the main loop to check for interrupts anyway.
              */
             tcg_gen_exit_tb(0);
             break;
+        }
         }
     }
 
@@ -11423,8 +11428,7 @@ static void aarch64_tr_disas_log(const DisasContextBase *dcbase,
     DisasContext *dc = container_of(dcbase, DisasContext, base);
 
     qemu_log("IN: %s\n", lookup_symbol(dc->base.pc_first));
-    log_target_disas(cpu, dc->base.pc_first, dc->base.tb->size,
-                     4 | (bswap_code(dc->sctlr_b) ? 2 : 0));
+    log_target_disas(cpu, dc->base.pc_first, dc->base.tb->size);
 }
 
 const TranslatorOps aarch64_translator_ops = {
