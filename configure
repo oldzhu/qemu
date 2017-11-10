@@ -267,10 +267,13 @@ stack_protector=""
 
 if test -e "$source_path/.git"
 then
+    git_update=yes
     git_submodules="ui/keycodemapdb"
 else
+    git_update=no
     git_submodules=""
 fi
+git="git"
 
 # Don't accept a target_list environment variable.
 unset target_list
@@ -1303,6 +1306,12 @@ for opt do
   ;;
   --enable-capstone=system) capstone="system"
   ;;
+  --with-git=*) git="$optarg"
+  ;;
+  --enable-git-update) git_update=yes
+  ;;
+  --disable-git-update) git_update=no
+  ;;
   *)
       echo "ERROR: unknown option $opt"
       echo "Try '$0 --help' for more information"
@@ -1672,6 +1681,19 @@ EOF
       error_exit "Stack protector not supported"
     fi
   fi
+fi
+
+# Disable -Wmissing-braces on older compilers that warn even for
+# the "universal" C zero initializer {0}.
+cat > $TMPC << EOF
+struct {
+  int a[2];
+} x = {0};
+EOF
+if compile_object "-Werror" "" ; then
+  :
+else
+  QEMU_CFLAGS="$QEMU_CFLAGS -Wno-missing-braces"
 fi
 
 # Workaround for http://gcc.gnu.org/PR55489.  Happens with -fPIE/-fPIC and
@@ -5405,6 +5427,7 @@ echo "local state directory   queried at runtime"
 echo "Windows SDK       $win_sdk"
 fi
 echo "Source path       $source_path"
+echo "GIT binary        $git"
 echo "GIT submodules    $git_submodules"
 echo "C compiler        $cc"
 echo "Host C compiler   $host_cc"
@@ -5599,7 +5622,9 @@ echo "extra_cxxflags=$EXTRA_CXXFLAGS" >> $config_host_mak
 echo "extra_ldflags=$EXTRA_LDFLAGS" >> $config_host_mak
 echo "qemu_localedir=$qemu_localedir" >> $config_host_mak
 echo "libs_softmmu=$libs_softmmu" >> $config_host_mak
+echo "GIT=$git" >> $config_host_mak
 echo "GIT_SUBMODULES=$git_submodules" >> $config_host_mak
+echo "GIT_UPDATE=$git_update" >> $config_host_mak
 
 echo "ARCH=$ARCH" >> $config_host_mak
 
