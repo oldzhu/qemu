@@ -61,7 +61,7 @@ F: */
 
 Responsible Disclosure, Reporting Security Issues
 ------------------------------
-W: http://wiki.qemu.org/SecurityProcess
+W: https://wiki.qemu.org/SecurityProcess
 M: Michael S. Tsirkin <mst@redhat.com>
 L: secalert@redhat.com
 
@@ -563,6 +563,23 @@ Netduino 2
 M: Alistair Francis <alistair@alistair23.me>
 S: Maintained
 F: hw/arm/netduino2.c
+
+SmartFusion2
+M: Subbaraya Sundeep <sundeep.lkml@gmail.com>
+S: Maintained
+F: hw/arm/msf2-soc.c
+F: hw/misc/msf2-sysreg.c
+F: hw/timer/mss-timer.c
+F: hw/ssi/mss-spi.c
+F: include/hw/arm/msf2-soc.h
+F: include/hw/misc/msf2-sysreg.h
+F: include/hw/timer/mss-timer.h
+F: include/hw/ssi/mss-spi.h
+
+Emcraft M2S-FG484
+M: Subbaraya Sundeep <sundeep.lkml@gmail.com>
+S: Maintained
+F: hw/arm/msf2-som.c
 
 CRIS Machines
 -------------
@@ -1166,6 +1183,11 @@ M: Dmitry Fleytman <dmitry@daynix.com>
 S: Maintained
 F: hw/net/e1000e*
 
+eepro100
+M: Stefan Weil <sw@weilnetz.de>
+S: Maintained
+F: hw/net/eepro100.c
+
 Generic Loader
 M: Alistair Francis <alistair.francis@xilinx.com>
 S: Maintained
@@ -1649,7 +1671,7 @@ F: net/filter-mirror.c
 Record/replay
 M: Pavel Dovgalyuk <pavel.dovgaluk@ispras.ru>
 R: Paolo Bonzini <pbonzini@redhat.com>
-W: http://wiki.qemu.org/Features/record-replay
+W: https://wiki.qemu.org/Features/record-replay
 S: Supported
 F: replay/*
 F: block/blkreplay.c
