@@ -23,10 +23,9 @@
  */
 
 #include "qemu/osdep.h"
-#include "hw/hw.h"
 #include "qemu/error-report.h"
+#include "qemu/module.h"
 #include "qapi/error.h"
-#include "hw/qdev.h"
 #include "hw/virtio/virtio-bus.h"
 #include "hw/virtio/virtio.h"
 #include "exec/address-spaces.h"
@@ -67,6 +66,11 @@ void virtio_bus_device_plugged(VirtIODevice *vdev, Error **errp)
                                             &local_err);
     if (local_err) {
         error_propagate(errp, local_err);
+        return;
+    }
+
+    if (has_iommu && !virtio_host_has_feature(vdev, VIRTIO_F_IOMMU_PLATFORM)) {
+        error_setg(errp, "iommu_platform=true is not supported by the device");
         return;
     }
 
@@ -283,20 +287,30 @@ int virtio_bus_set_host_notifier(VirtioBusState *bus, int n, bool assign)
         r = k->ioeventfd_assign(proxy, notifier, n, true);
         if (r < 0) {
             error_report("%s: unable to assign ioeventfd: %d", __func__, r);
-            goto cleanup_event_notifier;
+            virtio_bus_cleanup_host_notifier(bus, n);
         }
-        return 0;
     } else {
         k->ioeventfd_assign(proxy, notifier, n, false);
     }
 
-cleanup_event_notifier:
+    if (r == 0) {
+        virtio_queue_set_host_notifier_enabled(vq, assign);
+    }
+
+    return r;
+}
+
+void virtio_bus_cleanup_host_notifier(VirtioBusState *bus, int n)
+{
+    VirtIODevice *vdev = virtio_bus_get_device(bus);
+    VirtQueue *vq = virtio_get_queue(vdev, n);
+    EventNotifier *notifier = virtio_queue_get_host_notifier(vq);
+
     /* Test and clear notifier after disabling event,
      * in case poll callback didn't have time to run.
      */
     virtio_queue_host_notifier_read(notifier);
     event_notifier_cleanup(notifier);
-    return r;
 }
 
 static char *virtio_bus_get_dev_path(DeviceState *dev)

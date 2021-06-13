@@ -52,7 +52,7 @@ int qemu_init_main_loop(Error **errp);
  * repeatedly calls main_loop_wait(false).
  *
  * Main loop services include file descriptor callbacks, bottom halves
- * and timers (defined in qemu-timer.h).  Bottom halves are similar to timers
+ * and timers (defined in qemu/timer.h).  Bottom halves are similar to timers
  * that execute immediately, but have a lower overhead and scheduling them
  * is wait-free, thread-safe and signal-safe.
  *
@@ -168,6 +168,20 @@ void qemu_del_wait_object(HANDLE handle, WaitObjectFunc *func, void *opaque);
 /* async I/O support */
 
 typedef void IOReadHandler(void *opaque, const uint8_t *buf, int size);
+
+/**
+ * IOCanReadHandler: Return the number of bytes that #IOReadHandler can accept
+ *
+ * This function reports how many bytes #IOReadHandler is prepared to accept.
+ * #IOReadHandler may be invoked with up to this number of bytes.  If this
+ * function returns 0 then #IOReadHandler is not invoked.
+ *
+ * This function is typically called from an event loop.  If the number of
+ * bytes changes outside the event loop (e.g. because a vcpu thread drained the
+ * buffer), then it is necessary to kick the event loop so that this function
+ * is called again.  aio_notify() or qemu_notify_event() can be used to kick
+ * the event loop.
+ */
 typedef int IOCanReadHandler(void *opaque);
 
 /**
@@ -220,24 +234,6 @@ void event_notifier_set_handler(EventNotifier *e,
 
 GSource *iohandler_get_g_source(void);
 AioContext *iohandler_get_aio_context(void);
-#ifdef CONFIG_POSIX
-/**
- * qemu_add_child_watch: Register a child process for reaping.
- *
- * Under POSIX systems, a parent process must read the exit status of
- * its child processes using waitpid, or the operating system will not
- * free some of the resources attached to that process.
- *
- * This function directs the QEMU main loop to observe a child process
- * and call waitpid as soon as it exits; the watch is then removed
- * automatically.  It is useful whenever QEMU forks a child process
- * but will find out about its termination by other means such as a
- * "broken pipe".
- *
- * @pid: The pid that QEMU should observe.
- */
-int qemu_add_child_watch(pid_t pid);
-#endif
 
 /**
  * qemu_mutex_iothread_locked: Return lock status of the main loop mutex.
@@ -262,7 +258,9 @@ bool qemu_mutex_iothread_locked(void);
  * NOTE: tools currently are single-threaded and qemu_mutex_lock_iothread
  * is a no-op there.
  */
-void qemu_mutex_lock_iothread(void);
+#define qemu_mutex_lock_iothread()                      \
+    qemu_mutex_lock_iothread_impl(__FILE__, __LINE__)
+void qemu_mutex_lock_iothread_impl(const char *file, int line);
 
 /**
  * qemu_mutex_unlock_iothread: Unlock the main loop mutex.
@@ -279,11 +277,39 @@ void qemu_mutex_lock_iothread(void);
  */
 void qemu_mutex_unlock_iothread(void);
 
+/*
+ * qemu_cond_wait_iothread: Wait on condition for the main loop mutex
+ *
+ * This function atomically releases the main loop mutex and causes
+ * the calling thread to block on the condition.
+ */
+void qemu_cond_wait_iothread(QemuCond *cond);
+
+/*
+ * qemu_cond_timedwait_iothread: like the previous, but with timeout
+ */
+void qemu_cond_timedwait_iothread(QemuCond *cond, int ms);
+
 /* internal interfaces */
 
 void qemu_fd_register(int fd);
 
 QEMUBH *qemu_bh_new(QEMUBHFunc *cb, void *opaque);
 void qemu_bh_schedule_idle(QEMUBH *bh);
+
+enum {
+    MAIN_LOOP_POLL_FILL,
+    MAIN_LOOP_POLL_ERR,
+    MAIN_LOOP_POLL_OK,
+};
+
+typedef struct MainLoopPoll {
+    int state;
+    uint32_t timeout;
+    GArray *pollfds;
+} MainLoopPoll;
+
+void main_loop_poll_add_notifier(Notifier *notify);
+void main_loop_poll_remove_notifier(Notifier *notify);
 
 #endif

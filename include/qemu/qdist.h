@@ -8,10 +8,13 @@
 #define QEMU_QDIST_H
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 #include "qemu/osdep.h"
 =======
 >>>>>>> upstream/master
 #include "qemu-common.h"
+=======
+>>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
 #include "qemu/bitops.h"
 
 /*

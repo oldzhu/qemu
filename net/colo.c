@@ -14,7 +14,8 @@
 
 #include "qemu/osdep.h"
 #include "trace.h"
-#include "net/colo.h"
+#include "colo.h"
+#include "util.h"
 
 uint32_t connection_key_hash(const void *opaque)
 {
@@ -132,12 +133,11 @@ void reverse_connection_key(ConnectionKey *key)
 
 Connection *connection_new(ConnectionKey *key)
 {
-    Connection *conn = g_slice_new(Connection);
+    Connection *conn = g_slice_new0(Connection);
 
     conn->ip_proto = key->ip_proto;
     conn->processing = false;
-    conn->offset = 0;
-    conn->syn_flag = 0;
+    conn->tcp_state = TCPS_CLOSED;
     g_queue_init(&conn->primary_list);
     g_queue_init(&conn->secondary_list);
 
@@ -157,9 +157,25 @@ void connection_destroy(void *opaque)
 
 Packet *packet_new(const void *data, int size, int vnet_hdr_len)
 {
-    Packet *pkt = g_slice_new(Packet);
+    Packet *pkt = g_slice_new0(Packet);
 
     pkt->data = g_memdup(data, size);
+    pkt->size = size;
+    pkt->creation_ms = qemu_clock_get_ms(QEMU_CLOCK_HOST);
+    pkt->vnet_hdr_len = vnet_hdr_len;
+
+    return pkt;
+}
+
+/*
+ * packet_new_nocopy will not copy data, so the caller can't release
+ * the data. And it will be released in packet_destroy.
+ */
+Packet *packet_new_nocopy(void *data, int size, int vnet_hdr_len)
+{
+    Packet *pkt = g_slice_new0(Packet);
+
+    pkt->data = data;
     pkt->size = size;
     pkt->creation_ms = qemu_clock_get_ms(QEMU_CLOCK_HOST);
     pkt->vnet_hdr_len = vnet_hdr_len;
@@ -172,6 +188,13 @@ void packet_destroy(void *opaque, void *user_data)
     Packet *pkt = opaque;
 
     g_free(pkt->data);
+    g_slice_free(Packet, pkt);
+}
+
+void packet_destroy_partial(void *opaque, void *user_data)
+{
+    Packet *pkt = opaque;
+
     g_slice_free(Packet, pkt);
 }
 
@@ -211,4 +234,12 @@ Connection *connection_get(GHashTable *connection_track_table,
     }
 
     return conn;
+}
+
+bool connection_has_tracked(GHashTable *connection_track_table,
+                            ConnectionKey *key)
+{
+    Connection *conn = g_hash_table_lookup(connection_track_table, key);
+
+    return conn ? true : false;
 }

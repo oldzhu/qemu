@@ -11,10 +11,13 @@
  */
 
 #include "qemu/osdep.h"
+#include "qapi/qmp/qbool.h"
 #include "qapi/qmp/qlist.h"
-#include "qapi/qmp/qobject.h"
+#include "qapi/qmp/qnull.h"
+#include "qapi/qmp/qnum.h"
+#include "qapi/qmp/qstring.h"
 #include "qemu/queue.h"
-#include "qemu-common.h"
+#include "qobject-internal.h"
 
 /**
  * qlist_new(): Create a new QList
@@ -32,20 +35,17 @@ QList *qlist_new(void)
     return qlist;
 }
 
-static void qlist_copy_elem(QObject *obj, void *opaque)
-{
-    QList *dst = opaque;
-
-    qobject_incref(obj);
-    qlist_append_obj(dst, obj);
-}
-
 QList *qlist_copy(QList *src)
 {
     QList *dst = qlist_new();
+    QListEntry *entry;
+    QObject *elt;
 
-    qlist_iter(src, qlist_copy_elem, dst);
-
+    QLIST_FOREACH_ENTRY(src, entry) {
+        elt = qlist_entry_obj(entry);
+        qobject_ref(elt);
+        qlist_append_obj(dst, elt);
+    }
     return dst;
 }
 
@@ -64,19 +64,24 @@ void qlist_append_obj(QList *qlist, QObject *value)
     QTAILQ_INSERT_TAIL(&qlist->head, entry, next);
 }
 
-/**
- * qlist_iter(): Iterate over all the list's stored values.
- *
- * This function allows the user to provide an iterator, which will be
- * called for each stored value in the list.
- */
-void qlist_iter(const QList *qlist,
-                void (*iter)(QObject *obj, void *opaque), void *opaque)
+void qlist_append_int(QList *qlist, int64_t value)
 {
-    QListEntry *entry;
+    qlist_append(qlist, qnum_from_int(value));
+}
 
-    QTAILQ_FOREACH(entry, &qlist->head, next)
-        iter(entry->value, opaque);
+void qlist_append_bool(QList *qlist, bool value)
+{
+    qlist_append(qlist, qbool_from_bool(value));
+}
+
+void qlist_append_str(QList *qlist, const char *value)
+{
+    qlist_append(qlist, qstring_from_str(value));
+}
+
+void qlist_append_null(QList *qlist)
+{
+    qlist_append(qlist, qnull());
 }
 
 QObject *qlist_pop(QList *qlist)
@@ -115,28 +120,15 @@ int qlist_empty(const QList *qlist)
     return QTAILQ_EMPTY(&qlist->head);
 }
 
-static void qlist_size_iter(QObject *obj, void *opaque)
-{
-    size_t *count = opaque;
-    (*count)++;
-}
-
 size_t qlist_size(const QList *qlist)
 {
     size_t count = 0;
-    qlist_iter(qlist, qlist_size_iter, &count);
-    return count;
-}
+    QListEntry *entry;
 
-/**
- * qobject_to_qlist(): Convert a QObject into a QList
- */
-QList *qobject_to_qlist(const QObject *obj)
-{
-    if (!obj || qobject_type(obj) != QTYPE_QLIST) {
-        return NULL;
+    QLIST_FOREACH_ENTRY(qlist, entry) {
+        count++;
     }
-    return container_of(obj, QList, base);
+    return count;
 }
 
 /**
@@ -150,8 +142,8 @@ QList *qobject_to_qlist(const QObject *obj)
  */
 bool qlist_is_equal(const QObject *x, const QObject *y)
 {
-    const QList *list_x = qobject_to_qlist(x);
-    const QList *list_y = qobject_to_qlist(y);
+    const QList *list_x = qobject_to(QList, x);
+    const QList *list_y = qobject_to(QList, y);
     const QListEntry *entry_x, *entry_y;
 
     entry_x = qlist_first(list_x);
@@ -180,11 +172,11 @@ void qlist_destroy_obj(QObject *obj)
     QListEntry *entry, *next_entry;
 
     assert(obj != NULL);
-    qlist = qobject_to_qlist(obj);
+    qlist = qobject_to(QList, obj);
 
     QTAILQ_FOREACH_SAFE(entry, &qlist->head, next, next_entry) {
         QTAILQ_REMOVE(&qlist->head, entry, next);
-        qobject_decref(entry->value);
+        qobject_unref(entry->value);
         g_free(entry);
     }
 

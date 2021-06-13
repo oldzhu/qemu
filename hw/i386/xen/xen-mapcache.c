@@ -9,16 +9,15 @@
  */
 
 #include "qemu/osdep.h"
+#include "qemu/units.h"
 #include "qemu/error-report.h"
 
 #include <sys/resource.h>
 
-#include "hw/xen/xen_backend.h"
-#include "sysemu/blockdev.h"
+#include "hw/xen/xen-legacy-backend.h"
 #include "qemu/bitmap.h"
 
-#include <xen/hvm/params.h>
-
+#include "sysemu/runstate.h"
 #include "sysemu/xen-mapcache.h"
 #include "trace.h"
 
@@ -47,7 +46,7 @@
  * From empirical tests I observed that qemu use 75MB more than the
  * max_mcache_size.
  */
-#define NON_MCACHE_MEMORY_SIZE (80 * 1024 * 1024)
+#define NON_MCACHE_MEMORY_SIZE (80 * MiB)
 
 typedef struct MapCacheEntry {
     hwaddr paddr_index;
@@ -71,7 +70,7 @@ typedef struct MapCacheRev {
 typedef struct MapCache {
     MapCacheEntry *entry;
     unsigned long nr_buckets;
-    QTAILQ_HEAD(map_cache_head, MapCacheRev) locked_entries;
+    QTAILQ_HEAD(, MapCacheRev) locked_entries;
 
     /* For most cases (>99.9%), the page address is the same. */
     MapCacheEntry *last_entry;
@@ -170,9 +169,23 @@ static void xen_remap_bucket(MapCacheEntry *entry,
 
     if (entry->vaddr_base != NULL) {
         if (!(entry->flags & XEN_MAPCACHE_ENTRY_DUMMY)) {
-            ram_block_notify_remove(entry->vaddr_base, entry->size);
+            ram_block_notify_remove(entry->vaddr_base, entry->size,
+                                    entry->size);
         }
-        if (munmap(entry->vaddr_base, entry->size) != 0) {
+
+        /*
+         * If an entry is being replaced by another mapping and we're using
+         * MAP_FIXED flag for it - there is possibility of a race for vaddr
+         * address with another thread doing an mmap call itself
+         * (see man 2 mmap). To avoid that we skip explicit unmapping here
+         * and allow the kernel to destroy the previous mappings by replacing
+         * them in mmap call later.
+         *
+         * Non-identical replacements are not allowed therefore.
+         */
+        assert(!vaddr || (entry->vaddr_base == vaddr && entry->size == size));
+
+        if (!vaddr && munmap(entry->vaddr_base, entry->size) != 0) {
             perror("unmap fails");
             exit(-1);
         }
@@ -184,9 +197,14 @@ static void xen_remap_bucket(MapCacheEntry *entry,
         pfns[i] = (address_index << (MCACHE_BUCKET_SHIFT-XC_PAGE_SHIFT)) + i;
     }
 
+    /*
+     * If the caller has requested the mapping at a specific address use
+     * MAP_FIXED to make sure it's honored.
+     */
     if (!dummy) {
         vaddr_base = xenforeignmemory_map2(xen_fmem, xen_domid, vaddr,
-                                           PROT_READ | PROT_WRITE, 0,
+                                           PROT_READ | PROT_WRITE,
+                                           vaddr ? MAP_FIXED : 0,
                                            nb_pfn, pfns, err);
         if (vaddr_base == NULL) {
             perror("xenforeignmemory_map2");
@@ -198,15 +216,16 @@ static void xen_remap_bucket(MapCacheEntry *entry,
          * mapping immediately due to certain circumstances (i.e. on resume now)
          */
         vaddr_base = mmap(vaddr, size, PROT_READ | PROT_WRITE,
-                          MAP_ANON | MAP_SHARED, -1, 0);
-        if (vaddr_base == NULL) {
+                          MAP_ANON | MAP_SHARED | (vaddr ? MAP_FIXED : 0),
+                          -1, 0);
+        if (vaddr_base == MAP_FAILED) {
             perror("mmap");
             exit(-1);
         }
     }
 
     if (!(entry->flags & XEN_MAPCACHE_ENTRY_DUMMY)) {
-        ram_block_notify_add(vaddr_base, size);
+        ram_block_notify_add(vaddr_base, size, size);
     }
 
     entry->vaddr_base = vaddr_base;
@@ -319,7 +338,7 @@ tryagain:
         mapcache->last_entry = NULL;
 #ifdef XEN_COMPAT_PHYSMAP
         if (!translated && mapcache->phys_offset_to_gaddr) {
-            phys_addr = mapcache->phys_offset_to_gaddr(phys_addr, size, mapcache->opaque);
+            phys_addr = mapcache->phys_offset_to_gaddr(phys_addr, size);
             translated = true;
             goto tryagain;
         }
@@ -447,7 +466,7 @@ static void xen_invalidate_map_cache_entry_unlocked(uint8_t *buffer)
     }
 
     pentry->next = entry->next;
-    ram_block_notify_remove(entry->vaddr_base, entry->size);
+    ram_block_notify_remove(entry->vaddr_base, entry->size, entry->size);
     if (munmap(entry->vaddr_base, entry->size) != 0) {
         perror("unmap fails");
         exit(-1);

@@ -23,11 +23,9 @@
  */
 
 #include "qemu/osdep.h"
-#include "sysemu/sysemu.h"
+#include "qapi/qapi-commands-ui.h"
 #include "ui/console.h"
-#include "qmp-commands.h"
-#include "qapi-types.h"
-#include "ui/keymaps.h"
+#include "keymaps.h"
 #include "ui/input.h"
 
 struct QEMUPutMouseEntry {

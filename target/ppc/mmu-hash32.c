@@ -7,7 +7,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -21,13 +21,13 @@
 #include "qemu/osdep.h"
 #include "cpu.h"
 #include "exec/exec-all.h"
-#include "exec/helper-proto.h"
 #include "sysemu/kvm.h"
 #include "kvm_ppc.h"
+#include "internal.h"
 #include "mmu-hash32.h"
 #include "exec/log.h"
 
-//#define DEBUG_BAT
+/* #define DEBUG_BAT */
 
 #ifdef DEBUG_BATS
 #  define LOG_BATS(...) qemu_log_mask(CPU_LOG_MMU, __VA_ARGS__)
@@ -152,16 +152,17 @@ static int hash32_bat_601_prot(PowerPCCPU *cpu,
     return ppc_hash32_pp_prot(key, pp, 0);
 }
 
-static hwaddr ppc_hash32_bat_lookup(PowerPCCPU *cpu, target_ulong ea, int rwx,
-                                    int *prot)
+static hwaddr ppc_hash32_bat_lookup(PowerPCCPU *cpu, target_ulong ea,
+                                    MMUAccessType access_type, int *prot)
 {
     CPUPPCState *env = &cpu->env;
     target_ulong *BATlt, *BATut;
+    bool ifetch = access_type == MMU_INST_FETCH;
     int i;
 
     LOG_BATS("%s: %cBAT v " TARGET_FMT_lx "\n", __func__,
-             rwx == 2 ? 'I' : 'D', ea);
-    if (rwx == 2) {
+             ifetch ? 'I' : 'D', ea);
+    if (ifetch) {
         BATlt = env->IBAT[1];
         BATut = env->IBAT[0];
     } else {
@@ -180,7 +181,7 @@ static hwaddr ppc_hash32_bat_lookup(PowerPCCPU *cpu, target_ulong ea, int rwx,
         }
         LOG_BATS("%s: %cBAT%d v " TARGET_FMT_lx " BATu " TARGET_FMT_lx
                  " BATl " TARGET_FMT_lx "\n", __func__,
-                 type == ACCESS_CODE ? 'I' : 'D', i, ea, batu, batl);
+                 ifetch ? 'I' : 'D', i, ea, batu, batl);
 
         if (mask && ((ea & mask) == (batu & BATU32_BEPI))) {
             hwaddr raddr = (batl & mask) | (ea & ~mask);
@@ -208,7 +209,7 @@ static hwaddr ppc_hash32_bat_lookup(PowerPCCPU *cpu, target_ulong ea, int rwx,
             LOG_BATS("%s: %cBAT%d v " TARGET_FMT_lx " BATu " TARGET_FMT_lx
                      " BATl " TARGET_FMT_lx "\n\t" TARGET_FMT_lx " "
                      TARGET_FMT_lx " " TARGET_FMT_lx "\n",
-                     __func__, type == ACCESS_CODE ? 'I' : 'D', i, ea,
+                     __func__, ifetch ? 'I' : 'D', i, ea,
                      *BATu, *BATl, BEPIu, BEPIl, bl);
         }
     }
@@ -218,7 +219,8 @@ static hwaddr ppc_hash32_bat_lookup(PowerPCCPU *cpu, target_ulong ea, int rwx,
 }
 
 static int ppc_hash32_direct_store(PowerPCCPU *cpu, target_ulong sr,
-                                   target_ulong eaddr, int rwx,
+                                   target_ulong eaddr,
+                                   MMUAccessType access_type,
                                    hwaddr *raddr, int *prot)
 {
     CPUState *cs = CPU(cpu);
@@ -228,8 +230,10 @@ static int ppc_hash32_direct_store(PowerPCCPU *cpu, target_ulong sr,
     qemu_log_mask(CPU_LOG_MMU, "direct store...\n");
 
     if ((sr & 0x1FF00000) >> 20 == 0x07f) {
-        /* Memory-forced I/O controller interface access */
-        /* If T=1 and BUID=x'07F', the 601 performs a memory access
+        /*
+         * Memory-forced I/O controller interface access
+         *
+         * If T=1 and BUID=x'07F', the 601 performs a memory access
          * to SR[28-31] LA[4-31], bypassing all protection mechanisms.
          */
         *raddr = ((sr & 0xF) << 28) | (eaddr & 0x0FFFFFFF);
@@ -237,7 +241,7 @@ static int ppc_hash32_direct_store(PowerPCCPU *cpu, target_ulong sr,
         return 0;
     }
 
-    if (rwx == 2) {
+    if (access_type == MMU_INST_FETCH) {
         /* No code fetch is allowed in direct-store areas */
         cs->exception_index = POWERPC_EXCP_ISI;
         env->error_code = 0x10000000;
@@ -258,16 +262,18 @@ static int ppc_hash32_direct_store(PowerPCCPU *cpu, target_ulong sr,
         /* lwarx, ldarx or srwcx. */
         env->error_code = 0;
         env->spr[SPR_DAR] = eaddr;
-        if (rwx == 1) {
+        if (access_type == MMU_DATA_STORE) {
             env->spr[SPR_DSISR] = 0x06000000;
         } else {
             env->spr[SPR_DSISR] = 0x04000000;
         }
         return 1;
     case ACCESS_CACHE:
-        /* dcba, dcbt, dcbtst, dcbf, dcbi, dcbst, dcbz, or icbi */
-        /* Should make the instruction do no-op.
-         * As it already do no-op, it's quite easy :-)
+        /*
+         * dcba, dcbt, dcbtst, dcbf, dcbi, dcbst, dcbz, or icbi
+         *
+         * Should make the instruction do no-op.  As it already do
+         * no-op, it's quite easy :-)
          */
         *raddr = eaddr;
         return 0;
@@ -276,7 +282,7 @@ static int ppc_hash32_direct_store(PowerPCCPU *cpu, target_ulong sr,
         cs->exception_index = POWERPC_EXCP_DSI;
         env->error_code = 0;
         env->spr[SPR_DAR] = eaddr;
-        if (rwx == 1) {
+        if (access_type == MMU_DATA_STORE) {
             env->spr[SPR_DSISR] = 0x06100000;
         } else {
             env->spr[SPR_DSISR] = 0x04100000;
@@ -286,14 +292,15 @@ static int ppc_hash32_direct_store(PowerPCCPU *cpu, target_ulong sr,
         cpu_abort(cs, "ERROR: instruction should not need "
                  "address translation\n");
     }
-    if ((rwx == 1 || key != 1) && (rwx == 0 || key != 0)) {
+    if ((access_type == MMU_DATA_STORE || key != 1) &&
+        (access_type == MMU_DATA_LOAD || key != 0)) {
         *raddr = eaddr;
         return 0;
     } else {
         cs->exception_index = POWERPC_EXCP_DSI;
         env->error_code = 0;
         env->spr[SPR_DAR] = eaddr;
-        if (rwx == 1) {
+        if (access_type == MMU_DATA_STORE) {
             env->spr[SPR_DSISR] = 0x0a000000;
         } else {
             env->spr[SPR_DSISR] = 0x08000000;
@@ -319,6 +326,12 @@ static hwaddr ppc_hash32_pteg_search(PowerPCCPU *cpu, hwaddr pteg_off,
 
     for (i = 0; i < HPTES_PER_GROUP; i++) {
         pte0 = ppc_hash32_load_hpte0(cpu, pte_offset);
+        /*
+         * pte0 contains the valid bit and must be read before pte1,
+         * otherwise we might see an old pte1 with a new valid bit and
+         * thus an inconsistent hpte value
+         */
+        smp_rmb();
         pte1 = ppc_hash32_load_hpte1(cpu, pte_offset);
 
         if ((pte0 & HPTE32_V_VALID)
@@ -333,6 +346,24 @@ static hwaddr ppc_hash32_pteg_search(PowerPCCPU *cpu, hwaddr pteg_off,
     }
 
     return -1;
+}
+
+static void ppc_hash32_set_r(PowerPCCPU *cpu, hwaddr pte_offset, uint32_t pte1)
+{
+    target_ulong base = ppc_hash32_hpt_base(cpu);
+    hwaddr offset = pte_offset + 6;
+
+    /* The HW performs a non-atomic byte update */
+    stb_phys(CPU(cpu)->as, base + offset, ((pte1 >> 8) & 0xff) | 0x01);
+}
+
+static void ppc_hash32_set_c(PowerPCCPU *cpu, hwaddr pte_offset, uint64_t pte1)
+{
+    target_ulong base = ppc_hash32_hpt_base(cpu);
+    hwaddr offset = pte_offset + 7;
+
+    /* The HW performs a non-atomic byte update */
+    stb_phys(CPU(cpu)->as, base + offset, (pte1 & 0xff) | 0x80);
 }
 
 static hwaddr ppc_hash32_htab_lookup(PowerPCCPU *cpu,
@@ -393,14 +424,16 @@ int ppc_hash32_handle_mmu_fault(PowerPCCPU *cpu, vaddr eaddr, int rwx,
     hwaddr pte_offset;
     ppc_hash_pte32_t pte;
     int prot;
-    uint32_t new_pte1;
-    const int need_prot[] = {PAGE_READ, PAGE_WRITE, PAGE_EXEC};
+    int need_prot;
+    MMUAccessType access_type;
     hwaddr raddr;
 
     assert((rwx == 0) || (rwx == 1) || (rwx == 2));
+    access_type = rwx;
+    need_prot = prot_for_access_type(access_type);
 
     /* 1. Handle real mode accesses */
-    if (((rwx == 2) && (msr_ir == 0)) || ((rwx != 2) && (msr_dr == 0))) {
+    if (access_type == MMU_INST_FETCH ? !msr_ir : !msr_dr) {
         /* Translation is off */
         raddr = eaddr;
         tlb_set_page(cs, eaddr & TARGET_PAGE_MASK, raddr & TARGET_PAGE_MASK,
@@ -411,17 +444,17 @@ int ppc_hash32_handle_mmu_fault(PowerPCCPU *cpu, vaddr eaddr, int rwx,
 
     /* 2. Check Block Address Translation entries (BATs) */
     if (env->nb_BATs != 0) {
-        raddr = ppc_hash32_bat_lookup(cpu, eaddr, rwx, &prot);
+        raddr = ppc_hash32_bat_lookup(cpu, eaddr, access_type, &prot);
         if (raddr != -1) {
-            if (need_prot[rwx] & ~prot) {
-                if (rwx == 2) {
+            if (need_prot & ~prot) {
+                if (access_type == MMU_INST_FETCH) {
                     cs->exception_index = POWERPC_EXCP_ISI;
                     env->error_code = 0x08000000;
                 } else {
                     cs->exception_index = POWERPC_EXCP_DSI;
                     env->error_code = 0;
                     env->spr[SPR_DAR] = eaddr;
-                    if (rwx == 1) {
+                    if (access_type == MMU_DATA_STORE) {
                         env->spr[SPR_DSISR] = 0x0a000000;
                     } else {
                         env->spr[SPR_DSISR] = 0x08000000;
@@ -442,7 +475,7 @@ int ppc_hash32_handle_mmu_fault(PowerPCCPU *cpu, vaddr eaddr, int rwx,
 
     /* 4. Handle direct store segments */
     if (sr & SR32_T) {
-        if (ppc_hash32_direct_store(cpu, sr, eaddr, rwx,
+        if (ppc_hash32_direct_store(cpu, sr, eaddr, access_type,
                                     &raddr, &prot) == 0) {
             tlb_set_page(cs, eaddr & TARGET_PAGE_MASK,
                          raddr & TARGET_PAGE_MASK, prot, mmu_idx,
@@ -454,7 +487,7 @@ int ppc_hash32_handle_mmu_fault(PowerPCCPU *cpu, vaddr eaddr, int rwx,
     }
 
     /* 5. Check for segment level no-execute violation */
-    if ((rwx == 2) && (sr & SR32_NX)) {
+    if (access_type == MMU_INST_FETCH && (sr & SR32_NX)) {
         cs->exception_index = POWERPC_EXCP_ISI;
         env->error_code = 0x10000000;
         return 1;
@@ -463,14 +496,14 @@ int ppc_hash32_handle_mmu_fault(PowerPCCPU *cpu, vaddr eaddr, int rwx,
     /* 6. Locate the PTE in the hash table */
     pte_offset = ppc_hash32_htab_lookup(cpu, sr, eaddr, &pte);
     if (pte_offset == -1) {
-        if (rwx == 2) {
+        if (access_type == MMU_INST_FETCH) {
             cs->exception_index = POWERPC_EXCP_ISI;
             env->error_code = 0x40000000;
         } else {
             cs->exception_index = POWERPC_EXCP_DSI;
             env->error_code = 0;
             env->spr[SPR_DAR] = eaddr;
-            if (rwx == 1) {
+            if (access_type == MMU_DATA_STORE) {
                 env->spr[SPR_DSISR] = 0x42000000;
             } else {
                 env->spr[SPR_DSISR] = 0x40000000;
@@ -486,17 +519,17 @@ int ppc_hash32_handle_mmu_fault(PowerPCCPU *cpu, vaddr eaddr, int rwx,
 
     prot = ppc_hash32_pte_prot(cpu, sr, pte);
 
-    if (need_prot[rwx] & ~prot) {
+    if (need_prot & ~prot) {
         /* Access right violation */
         qemu_log_mask(CPU_LOG_MMU, "PTE access rejected\n");
-        if (rwx == 2) {
+        if (access_type == MMU_INST_FETCH) {
             cs->exception_index = POWERPC_EXCP_ISI;
             env->error_code = 0x08000000;
         } else {
             cs->exception_index = POWERPC_EXCP_DSI;
             env->error_code = 0;
             env->spr[SPR_DAR] = eaddr;
-            if (rwx == 1) {
+            if (access_type == MMU_DATA_STORE) {
                 env->spr[SPR_DSISR] = 0x0a000000;
             } else {
                 env->spr[SPR_DSISR] = 0x08000000;
@@ -509,18 +542,20 @@ int ppc_hash32_handle_mmu_fault(PowerPCCPU *cpu, vaddr eaddr, int rwx,
 
     /* 8. Update PTE referenced and changed bits if necessary */
 
-    new_pte1 = pte.pte1 | HPTE32_R_R; /* set referenced bit */
-    if (rwx == 1) {
-        new_pte1 |= HPTE32_R_C; /* set changed (dirty) bit */
-    } else {
-        /* Treat the page as read-only for now, so that a later write
-         * will pass through this function again to set the C bit */
-        prot &= ~PAGE_WRITE;
+    if (!(pte.pte1 & HPTE32_R_R)) {
+        ppc_hash32_set_r(cpu, pte_offset, pte.pte1);
     }
-
-    if (new_pte1 != pte.pte1) {
-        ppc_hash32_store_hpte1(cpu, pte_offset, new_pte1);
-    }
+    if (!(pte.pte1 & HPTE32_R_C)) {
+        if (access_type == MMU_DATA_STORE) {
+            ppc_hash32_set_c(cpu, pte_offset, pte.pte1);
+        } else {
+            /*
+             * Treat the page as read-only for now, so that a later write
+             * will pass through this function again to set the C bit
+             */
+            prot &= ~PAGE_WRITE;
+        }
+     }
 
     /* 9. Determine the real address from the PTE */
 

@@ -14,7 +14,11 @@
 #ifndef QEMU_RATELIMIT_H
 #define QEMU_RATELIMIT_H
 
+#include "qemu/lockable.h"
+#include "qemu/timer.h"
+
 typedef struct {
+    QemuMutex lock;
     int64_t slice_start_time;
     int64_t slice_end_time;
     uint64_t slice_quota;
@@ -36,8 +40,9 @@ typedef struct {
 static inline int64_t ratelimit_calculate_delay(RateLimit *limit, uint64_t n)
 {
     int64_t now = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
-    uint64_t delay_slices;
+    double delay_slices;
 
+    QEMU_LOCK_GUARD(&limit->lock);
     assert(limit->slice_quota && limit->slice_ns);
 
     if (limit->slice_end_time < now) {
@@ -55,18 +60,28 @@ static inline int64_t ratelimit_calculate_delay(RateLimit *limit, uint64_t n)
         return 0;
     }
 
-    /* Quota exceeded. Calculate the next time slice we may start
-     * sending data again. */
-    delay_slices = (limit->dispatched + limit->slice_quota - 1) /
-        limit->slice_quota;
+    /* Quota exceeded. Wait based on the excess amount and then start a new
+     * slice. */
+    delay_slices = (double)limit->dispatched / limit->slice_quota;
     limit->slice_end_time = limit->slice_start_time +
-        delay_slices * limit->slice_ns;
+        (uint64_t)(delay_slices * limit->slice_ns);
     return limit->slice_end_time - now;
+}
+
+static inline void ratelimit_init(RateLimit *limit)
+{
+    qemu_mutex_init(&limit->lock);
+}
+
+static inline void ratelimit_destroy(RateLimit *limit)
+{
+    qemu_mutex_destroy(&limit->lock);
 }
 
 static inline void ratelimit_set_speed(RateLimit *limit, uint64_t speed,
                                        uint64_t slice_ns)
 {
+    QEMU_LOCK_GUARD(&limit->lock);
     limit->slice_ns = slice_ns;
     limit->slice_quota = MAX(((double)speed * slice_ns) / 1000000000ULL, 1);
 }

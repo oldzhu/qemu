@@ -1,9 +1,8 @@
 #ifndef XEN_BLKIF_H
 #define XEN_BLKIF_H
 
-#include "hw/xen/io/ring.h"
-#include <xen/io/blkif.h>
-#include <xen/io/protocols.h>
+#include "hw/xen/interface/io/blkif.h"
+#include "hw/xen/interface/io/protocols.h"
 
 /*
  * Not a real protocol.  Used to generate ring structs which contain
@@ -182,5 +181,7 @@ static inline void blkif_get_x86_64_req(blkif_request_t *dst,
     }
 >>>>>>> upstream/master
 }
+
+#define XEN_BLKIF_SECTOR_SIZE 512
 
 #endif /* XEN_BLKIF_H */

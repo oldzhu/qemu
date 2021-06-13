@@ -11,8 +11,8 @@
  */
 
 #include "qemu/osdep.h"
-#include "qemu-common.h"
 #include "qapi/qmp/qnull.h"
+#include "qobject-internal.h"
 
 QNull qnull_ = {
     .base = {
