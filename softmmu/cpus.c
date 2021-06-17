@@ -44,6 +44,10 @@
 #include "sysemu/whpx.h"
 #include "hw/boards.h"
 #include "hw/hw.h"
+<<<<<<< HEAD
+=======
+#include "trace.h"
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
 #ifdef CONFIG_LINUX
 
@@ -266,6 +270,10 @@ static int do_vm_stop(RunState state, bool send_stop)
 
     bdrv_drain_all();
     ret = bdrv_flush_all();
+<<<<<<< HEAD
+=======
+    trace_vm_stop_flush_all(ret);
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
     return ret;
 }
@@ -704,12 +712,22 @@ int vm_stop_force_state(RunState state)
     if (runstate_is_running()) {
         return vm_stop(state);
     } else {
+<<<<<<< HEAD
+=======
+        int ret;
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
         runstate_set(state);
 
         bdrv_drain_all();
         /* Make sure to return an error if the flush in a previous vm_stop()
          * failed. */
+<<<<<<< HEAD
         return bdrv_flush_all();
+=======
+        ret = bdrv_flush_all();
+        trace_vm_stop_flush_all(ret);
+        return ret;
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     }
 }
 

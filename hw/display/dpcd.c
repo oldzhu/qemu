@@ -30,6 +30,7 @@
 #include "qemu/log.h"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 #include "hw/misc/aux.h"
 =======
 #include "hw/misc/auxbus.h"
@@ -39,6 +40,11 @@
 #include "hw/misc/auxbus.h"
 #include "migration/vmstate.h"
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+#include "qemu/module.h"
+#include "hw/misc/auxbus.h"
+#include "migration/vmstate.h"
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 #include "hw/display/dpcd.h"
 #include "trace.h"
 

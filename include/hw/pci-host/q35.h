@@ -50,12 +50,17 @@ struct MCHPCIState {
     MemoryRegion tseg_blackhole, tseg_window;
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     PcPciInfo pci_info;
 =======
 =======
     MemoryRegion smbase_blackhole, smbase_window;
     bool has_smram_at_smbase;
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+    MemoryRegion smbase_blackhole, smbase_window;
+    bool has_smram_at_smbase;
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     Range pci_hole;
 >>>>>>> upstream/master
     uint64_t below_4g_mem_size;

@@ -37,7 +37,11 @@ AARCH64_TESTS += bti-2
 
 # MTE Tests
 ifneq ($(DOCKER_IMAGE)$(CROSS_CC_HAS_ARMV8_MTE),)
+<<<<<<< HEAD
 AARCH64_TESTS += mte-1 mte-2 mte-3 mte-4 mte-5 mte-6
+=======
+AARCH64_TESTS += mte-1 mte-2 mte-3 mte-4 mte-5 mte-6 mte-7
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 mte-%: CFLAGS += -march=armv8.5-a+memtag
 endif
 

@@ -1968,6 +1968,7 @@ subdir('softmmu')
 
 common_ss.add(capstone)
 specific_ss.add(files('cpu.c', 'disas.c', 'gdbstub.c'), capstone)
+<<<<<<< HEAD
 specific_ss.add(when: 'CONFIG_TCG', if_true: files(
   'fpu/softfloat.c',
   'tcg/optimize.c',
@@ -1978,6 +1979,8 @@ specific_ss.add(when: 'CONFIG_TCG', if_true: files(
   'tcg/tcg.c',
 ))
 specific_ss.add(when: 'CONFIG_TCG_INTERPRETER', if_true: files('tcg/tci.c'))
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
 # Work around a gcc bug/misfeature wherein constant propagation looks
 # through an alias:
@@ -2007,6 +2010,11 @@ subdir('net')
 subdir('replay')
 subdir('semihosting')
 subdir('hw')
+<<<<<<< HEAD
+=======
+subdir('tcg')
+subdir('fpu')
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 subdir('accel')
 subdir('plugins')
 subdir('bsd-user')

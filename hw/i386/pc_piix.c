@@ -117,6 +117,7 @@ static void pc_init1(MachineState *machine,
      *
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
      *  - Note that Xen has its own ram setp code in xen_ram_init(),
      *    called via xen_hvm_init().
@@ -124,6 +125,10 @@ static void pc_init1(MachineState *machine,
      *  - Note that Xen has its own ram setup code in xen_ram_init(),
      *    called via xen_hvm_init_pc().
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+     *  - Note that Xen has its own ram setup code in xen_ram_init(),
+     *    called via xen_hvm_init_pc().
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
      *
 >>>>>>> upstream/master
      * Examples:
@@ -365,6 +370,7 @@ static void pc_compat_1_7_fn(MachineState *machine)
 }
 
 static void pc_compat_1_6_fn(MachineState *machine)
+<<<<<<< HEAD
 {
     pc_compat_1_7_fn(machine);
 }
@@ -376,6 +382,19 @@ static void pc_compat_1_5_fn(MachineState *machine)
 
 static void pc_compat_1_4_fn(MachineState *machine)
 {
+=======
+{
+    pc_compat_1_7_fn(machine);
+}
+
+static void pc_compat_1_5_fn(MachineState *machine)
+{
+    pc_compat_1_6_fn(machine);
+}
+
+static void pc_compat_1_4_fn(MachineState *machine)
+{
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     pc_compat_1_5_fn(machine);
 }
 

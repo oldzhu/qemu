@@ -184,6 +184,7 @@ ISADevice *pc_find_fdc0(void);
 #define PORT92_A20_LINE "a20"
 
 #define TYPE_PORT92 "port92"
+<<<<<<< HEAD
 
 /* pc_sysfw.c */
 void pc_system_flash_create(PCMachineState *pcms);
@@ -230,6 +231,54 @@ extern const size_t pc_compat_2_12_len;
 extern GlobalProperty pc_compat_2_11[];
 extern const size_t pc_compat_2_11_len;
 
+=======
+
+/* pc_sysfw.c */
+void pc_system_flash_create(PCMachineState *pcms);
+void pc_system_flash_cleanup_unused(PCMachineState *pcms);
+void pc_system_firmware_init(PCMachineState *pcms, MemoryRegion *rom_memory);
+bool pc_system_ovmf_table_find(const char *entry, uint8_t **data,
+                               int *data_len);
+
+
+/* acpi-build.c */
+void pc_madt_cpu_entry(AcpiDeviceIf *adev, int uid,
+                       const CPUArchIdList *apic_ids, GArray *entry);
+
+extern GlobalProperty pc_compat_6_0[];
+extern const size_t pc_compat_6_0_len;
+
+extern GlobalProperty pc_compat_5_2[];
+extern const size_t pc_compat_5_2_len;
+
+extern GlobalProperty pc_compat_5_1[];
+extern const size_t pc_compat_5_1_len;
+
+extern GlobalProperty pc_compat_5_0[];
+extern const size_t pc_compat_5_0_len;
+
+extern GlobalProperty pc_compat_4_2[];
+extern const size_t pc_compat_4_2_len;
+
+extern GlobalProperty pc_compat_4_1[];
+extern const size_t pc_compat_4_1_len;
+
+extern GlobalProperty pc_compat_4_0[];
+extern const size_t pc_compat_4_0_len;
+
+extern GlobalProperty pc_compat_3_1[];
+extern const size_t pc_compat_3_1_len;
+
+extern GlobalProperty pc_compat_3_0[];
+extern const size_t pc_compat_3_0_len;
+
+extern GlobalProperty pc_compat_2_12[];
+extern const size_t pc_compat_2_12_len;
+
+extern GlobalProperty pc_compat_2_11[];
+extern const size_t pc_compat_2_11_len;
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 extern GlobalProperty pc_compat_2_10[];
 extern const size_t pc_compat_2_10_len;
 
@@ -244,6 +293,7 @@ extern const size_t pc_compat_2_7_len;
 
 extern GlobalProperty pc_compat_2_6[];
 extern const size_t pc_compat_2_6_len;
+<<<<<<< HEAD
 
 extern GlobalProperty pc_compat_2_5[];
 extern const size_t pc_compat_2_5_len;
@@ -403,6 +453,38 @@ bool e820_get_entry(int, uint32_t, uint64_t *, uint64_t *);
 extern GlobalProperty pc_compat_1_4[];
 extern const size_t pc_compat_1_4_len;
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+
+extern GlobalProperty pc_compat_2_5[];
+extern const size_t pc_compat_2_5_len;
+
+extern GlobalProperty pc_compat_2_4[];
+extern const size_t pc_compat_2_4_len;
+
+extern GlobalProperty pc_compat_2_3[];
+extern const size_t pc_compat_2_3_len;
+
+extern GlobalProperty pc_compat_2_2[];
+extern const size_t pc_compat_2_2_len;
+
+extern GlobalProperty pc_compat_2_1[];
+extern const size_t pc_compat_2_1_len;
+
+extern GlobalProperty pc_compat_2_0[];
+extern const size_t pc_compat_2_0_len;
+
+extern GlobalProperty pc_compat_1_7[];
+extern const size_t pc_compat_1_7_len;
+
+extern GlobalProperty pc_compat_1_6[];
+extern const size_t pc_compat_1_6_len;
+
+extern GlobalProperty pc_compat_1_5[];
+extern const size_t pc_compat_1_5_len;
+
+extern GlobalProperty pc_compat_1_4[];
+extern const size_t pc_compat_1_4_len;
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
 /* Helper for setting model-id for CPU models that changed model-id
  * depending on QEMU versions up to QEMU 2.4.

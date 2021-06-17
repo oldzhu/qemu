@@ -230,6 +230,7 @@ enum {
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 #define NBD_MAX_SECTORS (NBD_MAX_BUFFER_SIZE / BDRV_SECTOR_SIZE)
 =======
@@ -243,6 +244,8 @@ enum {
  * aren't overflowing some other buffer. */
 #define NBD_MAX_NAME_SIZE 256
 =======
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
 /*
  * Maximum size of a protocol string (export name, metadata context name,
@@ -250,7 +253,10 @@ enum {
  * string.
  */
 #define NBD_MAX_STRING_SIZE 4096
+<<<<<<< HEAD
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
 /* Two types of reply structures */
 #define NBD_SIMPLE_REPLY_MAGIC      0x67446698

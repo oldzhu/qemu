@@ -689,12 +689,16 @@ static inline bool temp_readonly(TCGTemp *ts)
     return ts->kind >= TEMP_FIXED;
 }
 
+<<<<<<< HEAD
 extern TCGContext tcg_init_ctx;
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 extern __thread TCGContext *tcg_ctx;
 extern const void *tcg_code_gen_epilogue;
 extern uintptr_t tcg_splitwx_diff;
 extern TCGv_env cpu_env;
 
+<<<<<<< HEAD
 static inline bool in_code_gen_buffer(const void *p)
 {
     const TCGContext *s = &tcg_init_ctx;
@@ -705,6 +709,9 @@ static inline bool in_code_gen_buffer(const void *p)
      */
     return (size_t)(p - s->code_gen_buffer) <= s->code_gen_buffer_size;
 }
+=======
+bool in_code_gen_buffer(const void *p);
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
 #ifdef CONFIG_DEBUG_TCG
 const void *tcg_splitwx_to_rx(void *rw);
@@ -873,7 +880,10 @@ void *tcg_malloc_internal(TCGContext *s, int size);
 void tcg_pool_reset(TCGContext *s);
 TranslationBlock *tcg_tb_alloc(TCGContext *s);
 
+<<<<<<< HEAD
 void tcg_region_init(void);
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 void tb_destroy(TranslationBlock *tb);
 void tcg_region_reset_all(void);
 
@@ -906,7 +916,11 @@ static inline void *tcg_malloc(int size)
     }
 }
 
+<<<<<<< HEAD
 void tcg_context_init(TCGContext *s);
+=======
+void tcg_init(size_t tb_size, int splitwx, unsigned max_cpus);
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 void tcg_register_thread(void);
 void tcg_prologue_init(TCGContext *s);
 void tcg_func_start(TCGContext *s);
@@ -1082,6 +1096,19 @@ void tcg_op_remove(TCGContext *s, TCGOp *op);
 TCGOp *tcg_op_insert_before(TCGContext *s, TCGOp *op, TCGOpcode opc);
 TCGOp *tcg_op_insert_after(TCGContext *s, TCGOp *op, TCGOpcode opc);
 
+<<<<<<< HEAD
+=======
+/**
+ * tcg_remove_ops_after:
+ * @op: target operation
+ *
+ * Discard any opcodes emitted since @op.  Expected usage is to save
+ * a starting point with tcg_last_op(), speculatively emit opcodes,
+ * then decide whether or not to keep those opcodes after the fact.
+ */
+void tcg_remove_ops_after(TCGOp *op);
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 void tcg_optimize(TCGContext *s);
 
 /* Allocate a new temporary and initialize it with a constant. */
@@ -1096,7 +1123,12 @@ TCGv_vec tcg_const_ones_vec_matching(TCGv_vec);
 
 /*
  * Locate or create a read-only temporary that is a constant.
+<<<<<<< HEAD
  * This kind of temporary need not and should not be freed.
+=======
+ * This kind of temporary need not be freed, but for convenience
+ * will be silently ignored by tcg_temp_free_*.
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
  */
 TCGTemp *tcg_constant_internal(TCGType type, int64_t val);
 

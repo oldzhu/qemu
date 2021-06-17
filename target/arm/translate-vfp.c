@@ -143,11 +143,29 @@ static void gen_preserve_fp_state(DisasContext *s)
 static bool full_vfp_access_check(DisasContext *s, bool ignore_vfp_enabled)
 {
     if (s->fp_excp_el) {
+<<<<<<< HEAD
         /* M-profile handled this earlier, in disas_m_nocp() */
         assert (!arm_dc_feature(s, ARM_FEATURE_M));
         gen_exception_insn(s, s->pc_curr, EXCP_UDEF,
                            syn_fp_access_trap(1, 0xe, false),
                            s->fp_excp_el);
+=======
+        if (arm_dc_feature(s, ARM_FEATURE_M)) {
+            /*
+             * M-profile mostly catches the "FPU disabled" case early, in
+             * disas_m_nocp(), but a few insns (eg LCTP, WLSTP, DLSTP)
+             * which do coprocessor-checks are outside the large ranges of
+             * the encoding space handled by the patterns in m-nocp.decode,
+             * and for them we may need to raise NOCP here.
+             */
+            gen_exception_insn(s, s->pc_curr, EXCP_NOCP,
+                               syn_uncategorized(), s->fp_excp_el);
+        } else {
+            gen_exception_insn(s, s->pc_curr, EXCP_UDEF,
+                               syn_fp_access_trap(1, 0xe, false),
+                               s->fp_excp_el);
+        }
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
         return false;
     }
 
@@ -180,8 +198,13 @@ static bool full_vfp_access_check(DisasContext *s, bool ignore_vfp_enabled)
 
         if (s->v7m_new_fp_ctxt_needed) {
             /*
+<<<<<<< HEAD
              * Create new FP context by updating CONTROL.FPCA, CONTROL.SFPA
              * and the FPSCR.
+=======
+             * Create new FP context by updating CONTROL.FPCA, CONTROL.SFPA,
+             * the FPSCR, and VPR.
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
              */
             TCGv_i32 control, fpscr;
             uint32_t bits = R_V7M_CONTROL_FPCA_MASK;
@@ -189,6 +212,14 @@ static bool full_vfp_access_check(DisasContext *s, bool ignore_vfp_enabled)
             fpscr = load_cpu_field(v7m.fpdscr[s->v8m_secure]);
             gen_helper_vfp_set_fpscr(cpu_env, fpscr);
             tcg_temp_free_i32(fpscr);
+<<<<<<< HEAD
+=======
+            if (dc_isar_feature(aa32_mve, s)) {
+                TCGv_i32 z32 = tcg_const_i32(0);
+                store_cpu_field(z32, v7m.vpr);
+            }
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
             /*
              * We don't need to arrange to end the TB, because the only
              * parts of FPSCR which we cache in the TB flags are the VECLEN
@@ -784,10 +815,24 @@ static bool gen_M_fp_sysreg_write(DisasContext *s, int regno,
     {
         TCGv_i32 fpscr;
         tmp = loadfn(s, opaque);
+<<<<<<< HEAD
         /*
          * TODO: when we implement MVE, write the QC bit.
          * For non-MVE, QC is RES0.
          */
+=======
+        if (dc_isar_feature(aa32_mve, s)) {
+            /* QC is only present for MVE; otherwise RES0 */
+            TCGv_i32 qc = tcg_temp_new_i32();
+            tcg_gen_andi_i32(qc, tmp, FPCR_QC);
+            /*
+             * The 4 vfp.qc[] fields need only be "zero" vs "non-zero";
+             * here writing the same value into all elements is simplest.
+             */
+            tcg_gen_gvec_dup_i32(MO_32, offsetof(CPUARMState, vfp.qc),
+                                 16, 16, qc);
+        }
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
         tcg_gen_andi_i32(tmp, tmp, FPCR_NZCV_MASK);
         fpscr = load_cpu_field(vfp.xregs[ARM_VFP_FPSCR]);
         tcg_gen_andi_i32(fpscr, fpscr, ~FPCR_NZCV_MASK);
@@ -869,6 +914,14 @@ static bool gen_M_fp_sysreg_read(DisasContext *s, int regno,
         break;
     }
 
+<<<<<<< HEAD
+=======
+    if (regno == ARM_VFP_FPSCR_NZCVQC && !dc_isar_feature(aa32_mve, s)) {
+        /* QC is RES0 without MVE, so NZCVQC simplifies to NZCV */
+        regno = QEMU_VFP_FPSCR_NZCV;
+    }
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     switch (regno) {
     case ARM_VFP_FPSCR:
         tmp = tcg_temp_new_i32();
@@ -876,11 +929,19 @@ static bool gen_M_fp_sysreg_read(DisasContext *s, int regno,
         storefn(s, opaque, tmp);
         break;
     case ARM_VFP_FPSCR_NZCVQC:
+<<<<<<< HEAD
         /*
          * TODO: MVE has a QC bit, which we probably won't store
          * in the xregs[] field. For non-MVE, where QC is RES0,
          * we can just fall through to the FPSCR_NZCV case.
          */
+=======
+        tmp = tcg_temp_new_i32();
+        gen_helper_vfp_get_fpscr(tmp, cpu_env);
+        tcg_gen_andi_i32(tmp, tmp, FPCR_NZCVQC_MASK);
+        storefn(s, opaque, tmp);
+        break;
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     case QEMU_VFP_FPSCR_NZCV:
         /*
          * Read just NZCV; this is a special case to avoid the
@@ -1545,6 +1606,11 @@ static bool trans_VLDM_VSTM_sp(DisasContext *s, arg_VLDM_VSTM_sp *a)
         return false;
     }
 
+<<<<<<< HEAD
+=======
+    s->eci_handled = true;
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     if (!vfp_access_check(s)) {
         return true;
     }
@@ -1594,6 +1660,10 @@ static bool trans_VLDM_VSTM_sp(DisasContext *s, arg_VLDM_VSTM_sp *a)
         tcg_temp_free_i32(addr);
     }
 
+<<<<<<< HEAD
+=======
+    clear_eci_state(s);
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     return true;
 }
 
@@ -1628,6 +1698,11 @@ static bool trans_VLDM_VSTM_dp(DisasContext *s, arg_VLDM_VSTM_dp *a)
         return false;
     }
 
+<<<<<<< HEAD
+=======
+    s->eci_handled = true;
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     if (!vfp_access_check(s)) {
         return true;
     }
@@ -1684,6 +1759,10 @@ static bool trans_VLDM_VSTM_dp(DisasContext *s, arg_VLDM_VSTM_dp *a)
         tcg_temp_free_i32(addr);
     }
 
+<<<<<<< HEAD
+=======
+    clear_eci_state(s);
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     return true;
 }
 

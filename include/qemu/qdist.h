@@ -9,12 +9,15 @@
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 #include "qemu/osdep.h"
 =======
 >>>>>>> upstream/master
 #include "qemu-common.h"
 =======
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 #include "qemu/bitops.h"
 
 /*

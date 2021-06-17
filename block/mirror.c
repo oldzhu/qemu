@@ -287,6 +287,7 @@ static int mirror_cow_align(MirrorBlockJob *s, int64_t *offset,
 
 static inline void coroutine_fn
 mirror_wait_for_any_operation(MirrorBlockJob *s, bool active)
+<<<<<<< HEAD
 {
     MirrorOp *op;
 
@@ -313,6 +314,34 @@ mirror_wait_for_free_in_flight_slot(MirrorBlockJob *s)
     mirror_wait_for_any_operation(s, false);
 }
 
+=======
+{
+    MirrorOp *op;
+
+    QTAILQ_FOREACH(op, &s->ops_in_flight, next) {
+        /* Do not wait on pseudo ops, because it may in turn wait on
+         * some other operation to start, which may in fact be the
+         * caller of this function.  Since there is only one pseudo op
+         * at any given time, we will always find some real operation
+         * to wait on. */
+        if (!op->is_pseudo_op && op->is_in_flight &&
+            op->is_active_write == active)
+        {
+            qemu_co_queue_wait(&op->waiting_requests, NULL);
+            return;
+        }
+    }
+    abort();
+}
+
+static inline void coroutine_fn
+mirror_wait_for_free_in_flight_slot(MirrorBlockJob *s)
+{
+    /* Only non-active operations use up in-flight slots */
+    mirror_wait_for_any_operation(s, false);
+}
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 /* Perform a mirror copy operation.
  *
  * *op->bytes_handled is set to the number of bytes copied after and
@@ -638,21 +667,38 @@ static int mirror_exit_common(Job *job)
     Error *local_err = NULL;
     bool abort = job->ret < 0;
     int ret = 0;
+<<<<<<< HEAD
 
     if (s->prepared) {
         return 0;
     }
     s->prepared = true;
 
+=======
+
+    if (s->prepared) {
+        return 0;
+    }
+    s->prepared = true;
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     mirror_top_bs = s->mirror_top_bs;
     bs_opaque = mirror_top_bs->opaque;
     src = mirror_top_bs->backing->bs;
     target_bs = blk_bs(s->target);
+<<<<<<< HEAD
 
     if (bdrv_chain_contains(src, target_bs)) {
         bdrv_unfreeze_backing_chain(mirror_top_bs, target_bs);
     }
 
+=======
+
+    if (bdrv_chain_contains(src, target_bs)) {
+        bdrv_unfreeze_backing_chain(mirror_top_bs, target_bs);
+    }
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     bdrv_release_dirty_bitmap(s->dirty_bitmap);
 
     /* Make sure that the source BDS doesn't go away during bdrv_replace_node,
@@ -775,6 +821,7 @@ static int mirror_exit_common(Job *job)
 static int mirror_prepare(Job *job)
 {
     return mirror_exit_common(job);
+<<<<<<< HEAD
 }
 
 static void mirror_abort(Job *job)
@@ -783,6 +830,16 @@ static void mirror_abort(Job *job)
     assert(ret == 0);
 }
 
+=======
+}
+
+static void mirror_abort(Job *job)
+{
+    int ret = mirror_exit_common(job);
+    assert(ret == 0);
+}
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 static void coroutine_fn mirror_throttle(MirrorBlockJob *s)
 {
     int64_t now = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
@@ -1123,6 +1180,7 @@ static void mirror_complete(Job *job, Error **errp)
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     if (s->backing_mode == MIRROR_OPEN_BACKING_CHAIN) {
         int ret;
 
@@ -1138,6 +1196,8 @@ static void mirror_complete(Job *job, Error **errp)
 =======
 =======
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     /* block all operations on to_replace bs */
 >>>>>>> upstream/master
     if (s->replaces) {

@@ -2001,6 +2001,7 @@ else
 fi
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 # Consult white-list to determine whether to enable werror
 # by default.  Only enable by default for git builds
 <<<<<<< HEAD
@@ -2015,6 +2016,8 @@ if test -z "$werror" ; then
     else
         werror="no"
 =======
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 if test "$meson" = git; then
     git_submodules="${git_submodules} meson"
 fi
@@ -2037,7 +2040,10 @@ if test -z "$ninja"; then
     done
     if test -z "$ninja"; then
       error_exit "Cannot find Ninja"
+<<<<<<< HEAD
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     fi
 fi
 
@@ -2889,6 +2895,25 @@ has_libgcrypt() {
     return 0
 }
 
+<<<<<<< HEAD
+
+if test "$nettle" != "no"; then
+    pass="no"
+    if $pkg_config --exists "nettle >= 3.4"; then
+        nettle_cflags=$($pkg_config --cflags nettle)
+        nettle_libs=$($pkg_config --libs nettle)
+        # Link test to make sure the given libraries work (e.g for static).
+        write_c_skeleton
+        if compile_prog "" "$nettle_libs" ; then
+            if test -z "$gcrypt"; then
+               gcrypt="no"
+            fi
+            pass="yes"
+        fi
+    fi
+    if test "$pass" = "yes"
+    then
+=======
 
 if test "$nettle" != "no"; then
     pass="no"
@@ -2945,6 +2970,63 @@ if test "$gcrypt" != "no"; then
     fi
     if test "$pass" = "yes"; then
         gcrypt="yes"
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
+        cat > $TMPC << EOF
+#include <nettle/xts.h>
+int main(void) {
+<<<<<<< HEAD
+  return 0;
+}
+EOF
+        if compile_prog "$nettle_cflags" "$nettle_libs" ; then
+            nettle_xts=yes
+            qemu_private_xts=no
+        fi
+    fi
+    if test "$pass" = "no" && test "$nettle" = "yes"; then
+        feature_not_found "nettle" "Install nettle devel >= 2.7.1"
+    else
+        nettle="$pass"
+=======
+  gcry_cipher_hd_t handle;
+  gcry_cipher_open(&handle, GCRY_CIPHER_AES, GCRY_CIPHER_MODE_XTS, 0);
+  return 0;
+}
+EOF
+        if compile_prog "$gcrypt_cflags" "$gcrypt_libs" ; then
+            gcrypt_xts=yes
+            qemu_private_xts=no
+        fi
+    elif test "$gcrypt" = "yes"; then
+        feature_not_found "gcrypt" "Install gcrypt devel >= 1.5.0"
+    else
+        gcrypt="no"
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
+    fi
+fi
+
+if test "$gcrypt" != "no"; then
+    pass="no"
+    if has_libgcrypt; then
+        gcrypt_cflags=$(libgcrypt-config --cflags)
+        gcrypt_libs=$(libgcrypt-config --libs)
+        # Debian has removed -lgpg-error from libgcrypt-config
+        # as it "spreads unnecessary dependencies" which in
+        # turn breaks static builds...
+        if test "$static" = "yes"
+        then
+            gcrypt_libs="$gcrypt_libs -lgpg-error"
+        fi
+
+<<<<<<< HEAD
+        # Link test to make sure the given libraries work (e.g for static).
+        write_c_skeleton
+        if compile_prog "" "$gcrypt_libs" ; then
+            pass="yes"
+        fi
+    fi
+    if test "$pass" = "yes"; then
+        gcrypt="yes"
         cat > $TMPC << EOF
 #include <gcrypt.h>
 int main(void) {
@@ -2965,6 +3047,8 @@ EOF
 fi
 
 
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 if test "$gcrypt" = "yes" && test "$nettle" = "yes"
 then
     error_exit "Only one of gcrypt & nettle can be enabled"
@@ -5499,6 +5583,7 @@ else
 fi
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 echo_version() {
     if test "$1" = "yes" ; then
         echo "($2)"
@@ -5695,6 +5780,10 @@ if test "$supported_os" = "no"; then
 if !(GIT="$git" "$source_path/scripts/git-submodule.sh" "$git_submodules_action" "$git_submodules"); then
     exit 1
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+if !(GIT="$git" "$source_path/scripts/git-submodule.sh" "$git_submodules_action" "$git_submodules"); then
+    exit 1
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 fi
 
 config_host_mak="config-host.mak"

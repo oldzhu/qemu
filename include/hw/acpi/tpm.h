@@ -21,6 +21,11 @@
 #include "hw/acpi/aml-build.h"
 #include "sysemu/tpm.h"
 
+<<<<<<< HEAD
+=======
+#ifdef CONFIG_TPM
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 #define TPM_TIS_ADDR_BASE           0xFED40000
 #define TPM_TIS_ADDR_SIZE           0x5000
 
@@ -208,5 +213,10 @@ REG32(CRB_DATA_BUFFER, 0x80)
 #define TPM_PPI_FUNC_MASK                (7 << 0)
 
 void tpm_build_ppi_acpi(TPMIf *tpm, Aml *dev);
+<<<<<<< HEAD
+=======
+
+#endif /* CONFIG_TPM */
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
 #endif /* HW_ACPI_TPM_H */

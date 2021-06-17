@@ -314,6 +314,7 @@ void build_legacy_cpu_hotplug_aml(Aml *ctx, MachineState *machine,
      */
     pkg = x86ms->apic_id_limit <= 255 ? aml_package(x86ms->apic_id_limit) :
                                         aml_varpackage(x86ms->apic_id_limit);
+<<<<<<< HEAD
 
     for (i = 0, apic_idx = 0; i < apic_ids->len; i++) {
         int apic_id = apic_ids->cpus[i].arch_id;
@@ -539,6 +540,8 @@ void build_legacy_cpu_hotplug_aml(Aml *ctx, MachineState *machine,
      */
     pkg = pcms->apic_id_limit <= 255 ? aml_package(pcms->apic_id_limit) :
                                        aml_varpackage(pcms->apic_id_limit);
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
     for (i = 0, apic_idx = 0; i < apic_ids->len; i++) {
         int apic_id = apic_ids->cpus[i].arch_id;

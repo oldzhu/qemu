@@ -4818,7 +4818,11 @@ float32 float32_exp2(float32 a, float_status *status)
 
     float_raise(float_flag_inexact, status);
 
+<<<<<<< HEAD
     float64_unpack_canonical(&xnp, float64_ln2, status);
+=======
+    float64_unpack_canonical(&tp, float64_ln2, status);
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     xp = *parts_mul(&xp, &tp, status);
     xnp = xp;
 

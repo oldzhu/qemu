@@ -813,7 +813,11 @@ int main(int argc, char **argv)
     envlist_free(envlist);
 
     /*
+<<<<<<< HEAD
      * Now that page sizes are configured in tcg_exec_init() we can do
+=======
+     * Now that page sizes are configured we can do
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
      * proper page alignment for guest_base.
      */
     guest_base = HOST_PAGE_ALIGN(guest_base);
@@ -879,7 +883,6 @@ int main(int argc, char **argv)
      * the real value of GUEST_BASE into account.
      */
     tcg_prologue_init(tcg_ctx);
-    tcg_region_init();
 
     /* build Task State */
     memset(ts, 0, sizeof(TaskState));

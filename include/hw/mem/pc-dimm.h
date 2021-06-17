@@ -57,6 +57,7 @@ struct PCDIMMDevice {
  * @realize: called after common dimm is realized so that the dimm based
  * devices get the chance to do specified operations.
 <<<<<<< HEAD
+<<<<<<< HEAD
  * @get_memory_region: returns #MemoryRegion associated with @dimm which
 <<<<<<< HEAD
  * is directly mapped into the physical address space of guest
@@ -67,6 +68,8 @@ struct PCDIMMDevice {
 >>>>>>> upstream/master
 =======
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
  */
 struct PCDIMMDeviceClass {
     /* private */
