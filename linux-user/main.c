@@ -872,7 +872,10 @@ int main(int argc, char **argv, char **envp)
        generating the prologue until now so that the prologue can take
        the real value of GUEST_BASE into account.  */
     tcg_prologue_init(tcg_ctx);
+<<<<<<< HEAD
     tcg_region_init();
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
     target_cpu_copy_regs(env, regs);
 

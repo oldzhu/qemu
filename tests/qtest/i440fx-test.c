@@ -14,9 +14,12 @@
 
 #include "qemu/osdep.h"
 <<<<<<< HEAD
+<<<<<<< HEAD
 #include <sys/mman.h>
 =======
 >>>>>>> upstream/master
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
 #include "libqtest-single.h"
 #include "libqos/pci.h"

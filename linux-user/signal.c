@@ -201,6 +201,7 @@ int block_signals(void)
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     pending = atomic_xchg(&ts->signal_pending, 1);
 
     return pending;
@@ -210,6 +211,9 @@ int block_signals(void)
 =======
     return qatomic_xchg(&ts->signal_pending, 1);
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+    return qatomic_xchg(&ts->signal_pending, 1);
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 }
 
 /* Wrapper for sigprocmask function

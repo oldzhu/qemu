@@ -237,6 +237,7 @@ int probe_access_flags(CPUArchState *env, target_ulong addr,
     *phost = flags ? NULL : g2h(env_cpu(env), addr);
     return flags;
 }
+<<<<<<< HEAD
 
 void *probe_access(CPUArchState *env, target_ulong addr, int size,
                    MMUAccessType access_type, int mmu_idx, uintptr_t ra)
@@ -247,6 +248,18 @@ void *probe_access(CPUArchState *env, target_ulong addr, int size,
     flags = probe_access_internal(env, addr, size, access_type, false, ra);
     g_assert(flags == 0);
 
+=======
+
+void *probe_access(CPUArchState *env, target_ulong addr, int size,
+                   MMUAccessType access_type, int mmu_idx, uintptr_t ra)
+{
+    int flags;
+
+    g_assert(-(addr | TARGET_PAGE_MASK) >= size);
+    flags = probe_access_internal(env, addr, size, access_type, false, ra);
+    g_assert(flags == 0);
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     return size ? g2h(env_cpu(env), addr) : NULL;
 }
 
@@ -573,6 +586,7 @@ int cpu_signal_handler(int host_signum, void *pinfo, void *puc)
     unsigned long pc;
     int is_write;
     uint32_t esr;
+<<<<<<< HEAD
 
     pc = uc->uc_mcontext.__gregs[_REG_PC];
     esr = si->si_trap;
@@ -623,6 +637,12 @@ int cpu_signal_handler(int host_signum, void *pinfo,
   /* This ought to be in <bits/siginfo.h>... */
 # define __ISR_VALID    1
 =======
+=======
+
+    pc = uc->uc_mcontext.__gregs[_REG_PC];
+    esr = si->si_trap;
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     /*
      * siginfo_t::si_trap is the ESR value, for data aborts ESR.EC
      * is 0b10010x: then bit 6 is the WnR bit
@@ -640,7 +660,10 @@ struct esr_context {
     struct _aarch64_ctx head;
     uint64_t esr;
 };
+<<<<<<< HEAD
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 #endif
 
 static inline struct _aarch64_ctx *first_ctx(ucontext_t *uc)
@@ -766,6 +789,7 @@ int cpu_signal_handler(int host_signum, void *pinfo,
     int is_write = 0;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     /* XXX: compute is_write */
     is_write = 0;
     return handle_cpu_signal(pc, (unsigned long)info->si_addr,
@@ -775,6 +799,8 @@ int cpu_signal_handler(int host_signum, void *pinfo,
 
 #elif defined(__hppa__)
 =======
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     /* Detect all store instructions at program counter. */
     switch((insn >> 26) & 077) {
     case 050: /* SB */
@@ -811,12 +837,16 @@ int cpu_signal_handler(int host_signum, void *pinfo,
 }
 
 #elif defined(__riscv)
+<<<<<<< HEAD
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
 int cpu_signal_handler(int host_signum, void *pinfo,
                        void *puc)
 {
     siginfo_t *info = pinfo;
+<<<<<<< HEAD
 <<<<<<< HEAD
     struct ucontext *uc = puc;
     unsigned long pc = uc->uc_mcontext.sc_iaoq[0];
@@ -855,6 +885,8 @@ int cpu_signal_handler(int host_signum, void *pinfo,
 =======
 >>>>>>> upstream/master
 =======
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     ucontext_t *uc = puc;
     greg_t pc = uc->uc_mcontext.__gregs[REG_PC];
     uint32_t insn = *(uint32_t *)pc;
@@ -922,7 +954,10 @@ int cpu_signal_handler(int host_signum, void *pinfo,
     }
 
     return handle_cpu_signal(pc, info, is_write, &uc->uc_sigmask);
+<<<<<<< HEAD
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 }
 
 #else

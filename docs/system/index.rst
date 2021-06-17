@@ -30,6 +30,11 @@ Contents:
    guest-loader
    vnc-security
    tls
+<<<<<<< HEAD
+=======
+   secrets
+   authz
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
    gdb
    managed-startup
    cpu-hotplug

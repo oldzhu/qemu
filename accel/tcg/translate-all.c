@@ -18,7 +18,10 @@
  */
 
 #include "qemu/osdep.h"
+<<<<<<< HEAD
 #include "qemu/units.h"
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 #include "qemu-common.h"
 
 #define NO_CPU_IO_DEFS
@@ -49,7 +52,10 @@
 #include "exec/cputlb.h"
 #include "exec/translate-all.h"
 #include "qemu/bitmap.h"
+<<<<<<< HEAD
 #include "qemu/error-report.h"
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 #include "qemu/qemu-print.h"
 #include "qemu/timer.h"
 #include "qemu/main-loop.h"
@@ -220,9 +226,6 @@ static int v_l2_levels;
 
 static void *l1_map[V_L1_MAX_SIZE];
 
-/* code generation context */
-TCGContext tcg_init_ctx;
-__thread TCGContext *tcg_ctx;
 TBContext tb_ctx;
 
 static void page_table_config_init(void)
@@ -245,11 +248,14 @@ static void page_table_config_init(void)
     assert(v_l2_levels >= 0);
 }
 
+<<<<<<< HEAD
 static void cpu_gen_init(void)
 {
     tcg_context_init(&tcg_init_ctx);
 }
 
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 /* Encode VAL as a signed leb128 sequence at P.
    Return P incremented past the encoded value.  */
 static uint8_t *encode_sleb128(uint8_t *p, target_long val)
@@ -415,7 +421,7 @@ bool cpu_restore_state(CPUState *cpu, uintptr_t host_pc, bool will_exit)
     return false;
 }
 
-static void page_init(void)
+void page_init(void)
 {
     page_size_init();
     page_table_config_init();
@@ -559,6 +565,7 @@ static inline PageDesc *page_find(tb_page_addr_t index)
 
 static void page_lock_pair(PageDesc **ret_p1, tb_page_addr_t phys1,
                            PageDesc **ret_p2, tb_page_addr_t phys2, int alloc);
+<<<<<<< HEAD
 
 /* In user-mode page locks aren't used; mmap_lock is enough */
 #ifdef CONFIG_USER_ONLY
@@ -955,11 +962,27 @@ static void page_lock_pair(PageDesc **ret_p1, tb_page_addr_t phys1,
 #define DEFAULT_CODE_GEN_BUFFER_SIZE_1 (1 * GiB)
 #endif
 #endif
+=======
 
-#define DEFAULT_CODE_GEN_BUFFER_SIZE \
-  (DEFAULT_CODE_GEN_BUFFER_SIZE_1 < MAX_CODE_GEN_BUFFER_SIZE \
-   ? DEFAULT_CODE_GEN_BUFFER_SIZE_1 : MAX_CODE_GEN_BUFFER_SIZE)
+/* In user-mode page locks aren't used; mmap_lock is enough */
+#ifdef CONFIG_USER_ONLY
 
+#define assert_page_locked(pd) tcg_debug_assert(have_mmap_lock())
+
+static inline void page_lock(PageDesc *pd)
+{ }
+
+static inline void page_unlock(PageDesc *pd)
+{ }
+
+static inline void page_lock_tb(const TranslationBlock *tb)
+{ }
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
+
+static inline void page_unlock_tb(const TranslationBlock *tb)
+{ }
+
+<<<<<<< HEAD
 static size_t size_code_gen_buffer(size_t tb_size)
 {
     /* Size the buffer.  */
@@ -976,41 +999,77 @@ static size_t size_code_gen_buffer(size_t tb_size)
     }
     if (tb_size > MAX_CODE_GEN_BUFFER_SIZE) {
         tb_size = MAX_CODE_GEN_BUFFER_SIZE;
-    }
-    return tb_size;
-}
-
-#ifdef __mips__
-/* In order to use J and JAL within the code_gen_buffer, we require
-   that the buffer not cross a 256MB boundary.  */
-static inline bool cross_256mb(void *addr, size_t size)
+=======
+struct page_collection *
+page_collection_lock(tb_page_addr_t start, tb_page_addr_t end)
 {
-    return ((uintptr_t)addr ^ ((uintptr_t)addr + size)) & ~0x0ffffffful;
+    return NULL;
 }
 
-/* We weren't able to allocate a buffer without crossing that boundary,
-   so make do with the larger portion of the buffer that doesn't cross.
-   Returns the new base of the buffer, and adjusts code_gen_buffer_size.  */
-static inline void *split_cross_256mb(void *buf1, size_t size1)
+void page_collection_unlock(struct page_collection *set)
+{ }
+#else /* !CONFIG_USER_ONLY */
+
+#ifdef CONFIG_DEBUG_TCG
+
+static __thread GHashTable *ht_pages_locked_debug;
+
+static void ht_pages_locked_debug_init(void)
 {
-    void *buf2 = (void *)(((uintptr_t)buf1 + size1) & ~0x0ffffffful);
-    size_t size2 = buf1 + size1 - buf2;
-
-    size1 = buf2 - buf1;
-    if (size1 < size2) {
-        size1 = size2;
-        buf1 = buf2;
+    if (ht_pages_locked_debug) {
+        return;
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     }
-
-    tcg_ctx->code_gen_buffer_size = size1;
-    return buf1;
+    ht_pages_locked_debug = g_hash_table_new(NULL, NULL);
 }
-#endif
 
-#ifdef USE_STATIC_CODE_GEN_BUFFER
-static uint8_t static_code_gen_buffer[DEFAULT_CODE_GEN_BUFFER_SIZE]
-    __attribute__((aligned(CODE_GEN_ALIGN)));
+static bool page_is_locked(const PageDesc *pd)
+{
+    PageDesc *found;
 
+    ht_pages_locked_debug_init();
+    found = g_hash_table_lookup(ht_pages_locked_debug, pd);
+    return !!found;
+}
+
+static void page_lock__debug(PageDesc *pd)
+{
+    ht_pages_locked_debug_init();
+    g_assert(!page_is_locked(pd));
+    g_hash_table_insert(ht_pages_locked_debug, pd, pd);
+}
+
+static void page_unlock__debug(const PageDesc *pd)
+{
+    bool removed;
+
+    ht_pages_locked_debug_init();
+    g_assert(page_is_locked(pd));
+    removed = g_hash_table_remove(ht_pages_locked_debug, pd);
+    g_assert(removed);
+}
+
+static void
+do_assert_page_locked(const PageDesc *pd, const char *file, int line)
+{
+    if (unlikely(!page_is_locked(pd))) {
+        error_report("assert_page_lock: PageDesc %p not locked @ %s:%d",
+                     pd, file, line);
+        abort();
+    }
+}
+
+#define assert_page_locked(pd) do_assert_page_locked(pd, __FILE__, __LINE__)
+
+void assert_no_pages_locked(void)
+{
+    ht_pages_locked_debug_init();
+    g_assert(g_hash_table_size(ht_pages_locked_debug) == 0);
+}
+
+#else /* !CONFIG_DEBUG_TCG */
+
+<<<<<<< HEAD
 static bool alloc_code_gen_buffer(size_t tb_size, int splitwx, Error **errp)
 {
     void *buf, *end;
@@ -1026,28 +1085,72 @@ static bool alloc_code_gen_buffer(size_t tb_size, int splitwx, Error **errp)
     end = static_code_gen_buffer + sizeof(static_code_gen_buffer);
     buf = QEMU_ALIGN_PTR_UP(buf, qemu_real_host_page_size);
     end = QEMU_ALIGN_PTR_DOWN(end, qemu_real_host_page_size);
+=======
+#define assert_page_locked(pd)
 
-    size = end - buf;
+static inline void page_lock__debug(const PageDesc *pd)
+{
+}
 
+static inline void page_unlock__debug(const PageDesc *pd)
+{
+}
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
+
+#endif /* CONFIG_DEBUG_TCG */
+
+<<<<<<< HEAD
     /* Honor a command-line option limiting the size of the buffer.  */
     if (size > tb_size) {
         size = QEMU_ALIGN_DOWN(tb_size, qemu_real_host_page_size);
     }
     tcg_ctx->code_gen_buffer_size = size;
+=======
+static inline void page_lock(PageDesc *pd)
+{
+    page_lock__debug(pd);
+    qemu_spin_lock(&pd->lock);
+}
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
-#ifdef __mips__
-    if (cross_256mb(buf, size)) {
-        buf = split_cross_256mb(buf, size);
-        size = tcg_ctx->code_gen_buffer_size;
-    }
-#endif
+static inline void page_unlock(PageDesc *pd)
+{
+    qemu_spin_unlock(&pd->lock);
+    page_unlock__debug(pd);
+}
 
+<<<<<<< HEAD
     if (qemu_mprotect_rwx(buf, size)) {
         error_setg_errno(errp, errno, "mprotect of jit buffer");
         return false;
-    }
-    qemu_madvise(buf, size, QEMU_MADV_HUGEPAGE);
+=======
+/* lock the page(s) of a TB in the correct acquisition order */
+static inline void page_lock_tb(const TranslationBlock *tb)
+{
+    page_lock_pair(NULL, tb->page_addr[0], NULL, tb->page_addr[1], 0);
+}
 
+static inline void page_unlock_tb(const TranslationBlock *tb)
+{
+    PageDesc *p1 = page_find(tb->page_addr[0] >> TARGET_PAGE_BITS);
+
+    page_unlock(p1);
+    if (unlikely(tb->page_addr[1] != -1)) {
+        PageDesc *p2 = page_find(tb->page_addr[1] >> TARGET_PAGE_BITS);
+
+        if (p2 != p1) {
+            page_unlock(p2);
+        }
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
+    }
+}
+
+static inline struct page_entry *
+page_entry_new(PageDesc *pd, tb_page_addr_t index)
+{
+    struct page_entry *pe = g_malloc(sizeof(*pe));
+
+<<<<<<< HEAD
     tcg_ctx->code_gen_buffer = buf;
     return true;
 }
@@ -1118,12 +1221,49 @@ static bool alloc_code_gen_buffer_anon(size_t size, int prot,
             break;
         }
         buf = buf2;
+=======
+    pe->index = index;
+    pe->pd = pd;
+    pe->locked = false;
+    return pe;
+}
+
+static void page_entry_destroy(gpointer p)
+{
+    struct page_entry *pe = p;
+
+    g_assert(pe->locked);
+    page_unlock(pe->pd);
+    g_free(pe);
+}
+
+/* returns false on success */
+static bool page_entry_trylock(struct page_entry *pe)
+{
+    bool busy;
+
+    busy = qemu_spin_trylock(&pe->pd->lock);
+    if (!busy) {
+        g_assert(!pe->locked);
+        pe->locked = true;
+        page_lock__debug(pe->pd);
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     }
-#endif
+    return busy;
+}
 
-    /* Request large pages for the buffer.  */
-    qemu_madvise(buf, size, QEMU_MADV_HUGEPAGE);
+static void do_page_entry_lock(struct page_entry *pe)
+{
+    page_lock(pe->pd);
+    g_assert(!pe->locked);
+    pe->locked = true;
+}
 
+static gboolean page_entry_lock(gpointer key, gpointer value, gpointer data)
+{
+    struct page_entry *pe = value;
+
+<<<<<<< HEAD
     tcg_ctx->code_gen_buffer = buf;
     return true;
 }
@@ -1190,12 +1330,28 @@ static bool alloc_code_gen_buffer_splitwx_memfd(size_t size, Error **errp)
         close(fd);
     }
     return false;
+=======
+    do_page_entry_lock(pe);
+    return FALSE;
+}
+
+static gboolean page_entry_unlock(gpointer key, gpointer value, gpointer data)
+{
+    struct page_entry *pe = value;
+
+    if (pe->locked) {
+        pe->locked = false;
+        page_unlock(pe->pd);
+    }
+    return FALSE;
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 }
 #endif /* CONFIG_POSIX */
 
 #ifdef CONFIG_DARWIN
 #include <mach/mach.h>
 
+<<<<<<< HEAD
 extern kern_return_t mach_vm_remap(vm_map_t target_task,
                                    mach_vm_address_t *target_address,
                                    mach_vm_size_t size,
@@ -1249,10 +1405,50 @@ static bool alloc_code_gen_buffer_splitwx_vmremap(size_t size, Error **errp)
 
     tcg_splitwx_diff = buf_rx - buf_rw;
     return true;
+=======
+/*
+ * Trylock a page, and if successful, add the page to a collection.
+ * Returns true ("busy") if the page could not be locked; false otherwise.
+ */
+static bool page_trylock_add(struct page_collection *set, tb_page_addr_t addr)
+{
+    tb_page_addr_t index = addr >> TARGET_PAGE_BITS;
+    struct page_entry *pe;
+    PageDesc *pd;
+
+    pe = g_tree_lookup(set->tree, &index);
+    if (pe) {
+        return false;
+    }
+
+    pd = page_find(index);
+    if (pd == NULL) {
+        return false;
+    }
+
+    pe = page_entry_new(pd, index);
+    g_tree_insert(set->tree, &pe->index, pe);
+
+    /*
+     * If this is either (1) the first insertion or (2) a page whose index
+     * is higher than any other so far, just lock the page and move on.
+     */
+    if (set->max == NULL || pe->index > set->max->index) {
+        set->max = pe;
+        do_page_entry_lock(pe);
+        return false;
+    }
+    /*
+     * Try to acquire out-of-order lock; if busy, return busy so that we acquire
+     * locks in order.
+     */
+    return page_entry_trylock(pe);
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 }
 #endif /* CONFIG_DARWIN */
 #endif /* CONFIG_TCG_INTERPRETER */
 
+<<<<<<< HEAD
 static bool alloc_code_gen_buffer_splitwx(size_t size, Error **errp)
 {
 #ifndef CONFIG_TCG_INTERPRETER
@@ -1314,12 +1510,46 @@ static bool tb_cmp(const void *ap, const void *bp)
         a->trace_vcpu_dstate == b->trace_vcpu_dstate &&
         a->page_addr[0] == b->page_addr[0] &&
         a->page_addr[1] == b->page_addr[1];
+=======
+static gint tb_page_addr_cmp(gconstpointer ap, gconstpointer bp, gpointer udata)
+{
+    tb_page_addr_t a = *(const tb_page_addr_t *)ap;
+    tb_page_addr_t b = *(const tb_page_addr_t *)bp;
+
+    if (a == b) {
+        return 0;
+    } else if (a < b) {
+        return -1;
+    }
+    return 1;
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 }
 
-static void tb_htable_init(void)
+/*
+ * Lock a range of pages ([@start,@end[) as well as the pages of all
+ * intersecting TBs.
+ * Locking order: acquire locks in ascending order of page index.
+ */
+struct page_collection *
+page_collection_lock(tb_page_addr_t start, tb_page_addr_t end)
 {
-    unsigned int mode = QHT_MODE_AUTO_RESIZE;
+    struct page_collection *set = g_malloc(sizeof(*set));
+    tb_page_addr_t index;
+    PageDesc *pd;
 
+    start >>= TARGET_PAGE_BITS;
+    end   >>= TARGET_PAGE_BITS;
+    g_assert(start <= end);
+
+    set->tree = g_tree_new_full(tb_page_addr_cmp, NULL, NULL,
+                                page_entry_destroy);
+    set->max = NULL;
+    assert_no_pages_locked();
+
+ retry:
+    g_tree_foreach(set->tree, page_entry_lock, NULL);
+
+<<<<<<< HEAD
     qht_init(&tb_ctx.htable, tb_cmp, CODE_GEN_HTABLE_SIZE, mode);
 }
 
@@ -1344,6 +1574,102 @@ void tcg_exec_init(unsigned long tb_size, int splitwx)
        initialize the prologue now.  */
     tcg_prologue_init(tcg_ctx);
 #endif
+=======
+    for (index = start; index <= end; index++) {
+        TranslationBlock *tb;
+        int n;
+
+        pd = page_find(index);
+        if (pd == NULL) {
+            continue;
+        }
+        if (page_trylock_add(set, index << TARGET_PAGE_BITS)) {
+            g_tree_foreach(set->tree, page_entry_unlock, NULL);
+            goto retry;
+        }
+        assert_page_locked(pd);
+        PAGE_FOR_EACH_TB(pd, tb, n) {
+            if (page_trylock_add(set, tb->page_addr[0]) ||
+                (tb->page_addr[1] != -1 &&
+                 page_trylock_add(set, tb->page_addr[1]))) {
+                /* drop all locks, and reacquire in order */
+                g_tree_foreach(set->tree, page_entry_unlock, NULL);
+                goto retry;
+            }
+        }
+    }
+    return set;
+}
+
+void page_collection_unlock(struct page_collection *set)
+{
+    /* entries are unlocked and freed via page_entry_destroy */
+    g_tree_destroy(set->tree);
+    g_free(set);
+}
+
+#endif /* !CONFIG_USER_ONLY */
+
+static void page_lock_pair(PageDesc **ret_p1, tb_page_addr_t phys1,
+                           PageDesc **ret_p2, tb_page_addr_t phys2, int alloc)
+{
+    PageDesc *p1, *p2;
+    tb_page_addr_t page1;
+    tb_page_addr_t page2;
+
+    assert_memory_lock();
+    g_assert(phys1 != -1);
+
+    page1 = phys1 >> TARGET_PAGE_BITS;
+    page2 = phys2 >> TARGET_PAGE_BITS;
+
+    p1 = page_find_alloc(page1, alloc);
+    if (ret_p1) {
+        *ret_p1 = p1;
+    }
+    if (likely(phys2 == -1)) {
+        page_lock(p1);
+        return;
+    } else if (page1 == page2) {
+        page_lock(p1);
+        if (ret_p2) {
+            *ret_p2 = p1;
+        }
+        return;
+    }
+    p2 = page_find_alloc(page2, alloc);
+    if (ret_p2) {
+        *ret_p2 = p2;
+    }
+    if (page1 < page2) {
+        page_lock(p1);
+        page_lock(p2);
+    } else {
+        page_lock(p2);
+        page_lock(p1);
+    }
+}
+
+static bool tb_cmp(const void *ap, const void *bp)
+{
+    const TranslationBlock *a = ap;
+    const TranslationBlock *b = bp;
+
+    return a->pc == b->pc &&
+        a->cs_base == b->cs_base &&
+        a->flags == b->flags &&
+        (tb_cflags(a) & ~CF_INVALID) == (tb_cflags(b) & ~CF_INVALID) &&
+        a->trace_vcpu_dstate == b->trace_vcpu_dstate &&
+        a->page_addr[0] == b->page_addr[0] &&
+        a->page_addr[1] == b->page_addr[1];
+}
+
+void tb_htable_init(void)
+{
+    unsigned int mode = QHT_MODE_AUTO_RESIZE;
+
+    qht_init(&tb_ctx.htable, tb_cmp, CODE_GEN_HTABLE_SIZE, mode);
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 }
 
 /* call with @p->lock held */
@@ -1560,6 +1886,7 @@ static inline void tb_remove_from_jmp_list(TranslationBlock *orig, int n_orig)
          */
         g_assert(ptr_locked == 1 && dest->cflags & CF_INVALID);
         return;
+<<<<<<< HEAD
     }
     /*
      * We first acquired the lock, and since the destination pointer matches,
@@ -1575,6 +1902,23 @@ static inline void tb_remove_from_jmp_list(TranslationBlock *orig, int n_orig)
         }
         pprev = &tb->jmp_list_next[n];
     }
+=======
+    }
+    /*
+     * We first acquired the lock, and since the destination pointer matches,
+     * we know for sure that @orig is in the jmp list.
+     */
+    pprev = &dest->jmp_list_head;
+    TB_FOR_EACH_JMP(dest, tb, n) {
+        if (tb == orig && n == n_orig) {
+            *pprev = tb->jmp_list_next[n];
+            /* no need to set orig->jmp_dest[n]; setting the LSB was enough */
+            qemu_spin_unlock(&dest->jmp_lock);
+            return;
+        }
+        pprev = &tb->jmp_list_next[n];
+    }
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     g_assert_not_reached();
 }
 
@@ -2445,11 +2789,19 @@ void cpu_io_recompile(CPUState *cpu, uintptr_t retaddr)
      * double instrument the instruction.
      */
     cpu->cflags_next_tb = curr_cflags(cpu) | CF_MEMI_ONLY | CF_LAST_IO | n;
+<<<<<<< HEAD
 
     qemu_log_mask_and_addr(CPU_LOG_EXEC, tb->pc,
                            "cpu_io_recompile: rewound execution of TB to "
                            TARGET_FMT_lx "\n", tb->pc);
 
+=======
+
+    qemu_log_mask_and_addr(CPU_LOG_EXEC, tb->pc,
+                           "cpu_io_recompile: rewound execution of TB to "
+                           TARGET_FMT_lx "\n", tb->pc);
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     cpu_loop_exit_noexc(cpu);
 }
 
@@ -2755,7 +3107,30 @@ void page_set_flags(target_ulong start, target_ulong end, int flags)
             /* Using mprotect on a page does not change MAP_ANON. */
             p->flags = (p->flags & PAGE_ANON) | flags;
         }
+<<<<<<< HEAD
     }
+}
+
+void *page_get_target_data(target_ulong address)
+{
+    PageDesc *p = page_find(address >> TARGET_PAGE_BITS);
+    return p ? p->target_data : NULL;
+}
+
+void *page_alloc_target_data(target_ulong address, size_t size)
+{
+    PageDesc *p = page_find(address >> TARGET_PAGE_BITS);
+    void *ret = NULL;
+
+    if (p->flags & PAGE_VALID) {
+        ret = p->target_data;
+        if (!ret) {
+            p->target_data = ret = g_malloc0(size);
+        }
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
+    }
+    return ret;
 }
 
 void *page_get_target_data(target_ulong address)

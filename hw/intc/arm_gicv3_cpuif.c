@@ -14,6 +14,7 @@
 
 #include "qemu/osdep.h"
 #include "qemu/bitops.h"
+#include "qemu/log.h"
 #include "qemu/main-loop.h"
 #include "trace.h"
 #include "gicv3_internal.h"
@@ -1357,7 +1358,13 @@ static void icc_eoir_write(CPUARMState *env, const ARMCPRegInfo *ri,
         }
         break;
     default:
+<<<<<<< HEAD
         g_assert_not_reached();
+=======
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: IRQ %d isn't active\n", __func__, irq);
+        return;
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     }
 
     icc_drop_prio(cs, grp);

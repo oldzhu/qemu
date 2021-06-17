@@ -1123,6 +1123,7 @@ struct CPUPPCState {
     target_ulong hreset_vector;
     hwaddr mpic_iack;
 <<<<<<< HEAD
+<<<<<<< HEAD
     /* true when the external proxy facility mode is enabled */
     bool mpic_proxy;
     /* set when the processor has an HV mode, thus HV priv
@@ -1147,6 +1148,16 @@ struct CPUPPCState {
      */
     bool resume_as_sreset;
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+    bool mpic_proxy;  /* true if the external proxy facility mode is enabled */
+    bool has_hv_mode; /* set when the processor has an HV mode, thus HV priv */
+                      /* instructions and SPRs are diallowed if MSR:HV is 0 */
+    /*
+     * On P7/P8/P9, set when in PM state so we need to handle resume in a
+     * special way (such as routing some resume causes to 0x100, i.e. sreset).
+     */
+    bool resume_as_sreset;
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 #endif
 
     /* These resources are used only in TCG */

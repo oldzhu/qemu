@@ -107,7 +107,9 @@ typedef struct AcpiPmInfo {
 typedef struct AcpiMiscInfo {
     bool is_piix4;
     bool has_hpet;
+#ifdef CONFIG_TPM
     TPMVersion tpm_version;
+#endif
     const unsigned char *dsdt_code;
     unsigned dsdt_size;
     uint16_t pvpanic_port;
@@ -192,6 +194,7 @@ static Object *object_resolve_type_unambiguous(const char *typename)
 {
     bool ambig;
     Object *o = object_resolve_path_type("", typename, &ambig);
+<<<<<<< HEAD
 
     if (ambig || !o) {
         return NULL;
@@ -199,6 +202,15 @@ static Object *object_resolve_type_unambiguous(const char *typename)
     return o;
 }
 
+=======
+
+    if (ambig || !o) {
+        return NULL;
+    }
+    return o;
+}
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 static void acpi_get_pm_info(MachineState *machine, AcpiPmInfo *pm)
 {
     Object *piix = object_resolve_type_unambiguous(TYPE_PIIX4_PM);
@@ -286,7 +298,13 @@ static void acpi_get_misc_info(AcpiMiscInfo *info)
     }
 
     info->has_hpet = hpet_find();
+<<<<<<< HEAD
     info->tpm_version = tpm_get_version(tpm_find());
+=======
+#ifdef CONFIG_TPM
+    info->tpm_version = tpm_get_version(tpm_find());
+#endif
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     info->pvpanic_port = pvpanic_port();
     info->applesmc_io_base = applesmc_port();
 }
@@ -1371,7 +1389,13 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
     uint32_t nr_mem = machine->ram_slots;
     int root_bus_limit = 0xFF;
     PCIBus *bus = NULL;
+<<<<<<< HEAD
     TPMIf *tpm = tpm_find();
+=======
+#ifdef CONFIG_TPM
+    TPMIf *tpm = tpm_find();
+#endif
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     int i;
     VMBusBridge *vmbus_bridge = vmbus_bridge_find();
 
@@ -1604,10 +1628,15 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
         }
     }
 
+<<<<<<< HEAD
+=======
+#ifdef CONFIG_TPM
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     if (TPM_IS_TIS_ISA(tpm_find())) {
         aml_append(crs, aml_memory32_fixed(TPM_TIS_ADDR_BASE,
                    TPM_TIS_ADDR_SIZE, AML_READ_WRITE));
     }
+#endif
     aml_append(scope, aml_name_decl("_CRS", crs));
 
     /* reserve GPE0 block resources */
@@ -1753,6 +1782,10 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
             /* Scan all PCI buses. Generate tables to support hotplug. */
             build_append_pci_bus_devices(scope, bus, pm->pcihp_bridge_en);
 
+<<<<<<< HEAD
+=======
+#ifdef CONFIG_TPM
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
             if (TPM_IS_TIS_ISA(tpm)) {
                 if (misc->tpm_version == TPM_VERSION_2_0) {
                     dev = aml_device("TPM");
@@ -1780,11 +1813,16 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
 
                 aml_append(scope, dev);
             }
+#endif
 
             aml_append(sb_scope, scope);
         }
     }
 
+<<<<<<< HEAD
+=======
+#ifdef CONFIG_TPM
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     if (TPM_IS_CRB(tpm)) {
         dev = aml_device("TPM");
         aml_append(dev, aml_name_decl("_HID", aml_string("MSFT0101")));
@@ -1799,6 +1837,10 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
 
         aml_append(sb_scope, dev);
     }
+<<<<<<< HEAD
+=======
+#endif
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
     aml_append(dsdt, sb_scope);
 
@@ -1828,6 +1870,7 @@ build_hpet(GArray *table_data, BIOSLinker *linker, const char *oem_id,
                  "HPET", sizeof(*hpet), 1, oem_id, oem_table_id);
 }
 
+#ifdef CONFIG_TPM
 static void
 build_tpm_tcpa(GArray *table_data, BIOSLinker *linker, GArray *tcpalog,
                const char *oem_id, const char *oem_table_id)
@@ -1854,6 +1897,7 @@ build_tpm_tcpa(GArray *table_data, BIOSLinker *linker, GArray *tcpalog,
                  (void *)(table_data->data + tcpa_start),
                  "TCPA", sizeof(*tcpa), 2, oem_id, oem_table_id);
 }
+#endif
 
 #define HOLE_640K_START  (640 * KiB)
 #define HOLE_640K_END   (1 * MiB)
@@ -1950,6 +1994,7 @@ build_srat(GArray *table_data, BIOSLinker *linker, MachineState *machine)
             mem_base = 1ULL << 32;
             mem_len = next_base - x86ms->below_4g_mem_size;
             next_base = mem_base + mem_len;
+<<<<<<< HEAD
         }
 
         if (mem_len > 0) {
@@ -1963,6 +2008,21 @@ build_srat(GArray *table_data, BIOSLinker *linker, MachineState *machine)
         nvdimm_build_srat(table_data);
     }
 
+=======
+        }
+
+        if (mem_len > 0) {
+            numamem = acpi_data_push(table_data, sizeof *numamem);
+            build_srat_memory(numamem, mem_base, mem_len, i - 1,
+                              MEM_AFFINITY_ENABLED);
+        }
+    }
+
+    if (machine->nvdimms_state->is_enabled) {
+        nvdimm_build_srat(table_data);
+    }
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     slots = (table_data->len - numa_start) / sizeof *numamem;
     for (; slots < pcms->numa_nodes + 2; slots++) {
         numamem = acpi_data_push(table_data, sizeof *numamem);
@@ -2403,17 +2463,27 @@ void acpi_build(AcpiBuildTables *tables, MachineState *machine)
         build_hpet(tables_blob, tables->linker, x86ms->oem_id,
                    x86ms->oem_table_id);
     }
+#ifdef CONFIG_TPM
     if (misc.tpm_version != TPM_VERSION_UNSPEC) {
         if (misc.tpm_version == TPM_VERSION_1_2) {
+<<<<<<< HEAD
             acpi_add_table(table_offsets, tables_blob);
             build_tpm_tcpa(tables_blob, tables->linker, tables->tcpalog,
                            x86ms->oem_id, x86ms->oem_table_id);
         } else { /* TPM_VERSION_2_0 */
             acpi_add_table(table_offsets, tables_blob);
+=======
+            acpi_add_table(table_offsets, tables_blob);
+            build_tpm_tcpa(tables_blob, tables->linker, tables->tcpalog,
+                           x86ms->oem_id, x86ms->oem_table_id);
+        } else { /* TPM_VERSION_2_0 */
+            acpi_add_table(table_offsets, tables_blob);
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
             build_tpm2(tables_blob, tables->linker, tables->tcpalog,
                        x86ms->oem_id, x86ms->oem_table_id);
         }
     }
+#endif
     if (pcms->numa_nodes) {
         acpi_add_table(table_offsets, tables_blob);
         build_srat(tables_blob, tables->linker, machine);
@@ -2605,8 +2675,15 @@ void acpi_setup(void)
     AcpiBuildTables tables;
     AcpiBuildState *build_state;
     Object *vmgenid_dev;
+<<<<<<< HEAD
     TPMIf *tpm;
     static FwCfgTPMConfig tpm_config;
+=======
+#ifdef CONFIG_TPM
+    TPMIf *tpm;
+    static FwCfgTPMConfig tpm_config;
+#endif
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
     if (!x86ms->fw_cfg) {
         ACPI_BUILD_DPRINTF("No fw cfg. Bailing out.\n");
@@ -2638,6 +2715,10 @@ void acpi_setup(void)
         acpi_add_rom_blob(acpi_build_update, build_state,
                           tables.linker->cmd_blob, ACPI_BUILD_LOADER_FILE);
 
+<<<<<<< HEAD
+=======
+#ifdef CONFIG_TPM
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     fw_cfg_add_file(x86ms->fw_cfg, ACPI_BUILD_TPMLOG_FILE,
                     tables.tcpalog->data, acpi_data_len(tables.tcpalog));
 
@@ -2651,6 +2732,10 @@ void acpi_setup(void)
         fw_cfg_add_file(x86ms->fw_cfg, "etc/tpm/config",
                         &tpm_config, sizeof tpm_config);
     }
+<<<<<<< HEAD
+=======
+#endif
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
     vmgenid_dev = find_vmgenid_dev();
     if (vmgenid_dev) {

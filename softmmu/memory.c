@@ -1892,6 +1892,19 @@ int memory_region_register_iommu_notifier(MemoryRegion *mr,
     return ret;
 }
 
+<<<<<<< HEAD
+=======
+uint64_t memory_region_iommu_get_min_page_size(IOMMUMemoryRegion *iommu_mr)
+{
+    IOMMUMemoryRegionClass *imrc = IOMMU_MEMORY_REGION_GET_CLASS(iommu_mr);
+
+    if (imrc->get_min_page_size) {
+        return imrc->get_min_page_size(iommu_mr);
+    }
+    return TARGET_PAGE_SIZE;
+}
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 void memory_region_iommu_replay(IOMMUMemoryRegion *iommu_mr, IOMMUNotifier *n)
 {
     MemoryRegion *mr = MEMORY_REGION(iommu_mr);

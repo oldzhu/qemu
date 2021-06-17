@@ -1198,6 +1198,8 @@ static int calculate_l2_meta(BlockDriverState *bs, uint64_t host_cluster_offset,
     l2_bitmap = get_l2_bitmap(s, l2_slice, l2_index);
     sc_index = offset_to_sc_index(s, guest_offset);
     type = qcow2_get_subcluster_type(bs, l2_entry, l2_bitmap, sc_index);
+<<<<<<< HEAD
+=======
 
     if (!keep_old) {
         switch (type) {
@@ -1243,6 +1245,71 @@ static int calculate_l2_meta(BlockDriverState *bs, uint64_t host_cluster_offset,
     l2_bitmap = get_l2_bitmap(s, l2_slice, l2_index);
     sc_index = offset_to_sc_index(s, guest_offset + bytes - 1);
     type = qcow2_get_subcluster_type(bs, l2_entry, l2_bitmap, sc_index);
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
+
+    if (!keep_old) {
+        switch (type) {
+        case QCOW2_SUBCLUSTER_COMPRESSED:
+<<<<<<< HEAD
+            cow_start_from = 0;
+=======
+            cow_end_to = ROUND_UP(cow_end_from, s->cluster_size);
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
+            break;
+        case QCOW2_SUBCLUSTER_NORMAL:
+        case QCOW2_SUBCLUSTER_ZERO_ALLOC:
+        case QCOW2_SUBCLUSTER_UNALLOCATED_ALLOC:
+<<<<<<< HEAD
+            if (has_subclusters(s)) {
+                /* Skip all leading zero and unallocated subclusters */
+                uint32_t alloc_bitmap = l2_bitmap & QCOW_L2_BITMAP_ALL_ALLOC;
+                cow_start_from =
+                    MIN(sc_index, ctz32(alloc_bitmap)) << s->subcluster_bits;
+            } else {
+                cow_start_from = 0;
+=======
+            cow_end_to = ROUND_UP(cow_end_from, s->cluster_size);
+            if (has_subclusters(s)) {
+                /* Skip all trailing zero and unallocated subclusters */
+                uint32_t alloc_bitmap = l2_bitmap & QCOW_L2_BITMAP_ALL_ALLOC;
+                cow_end_to -=
+                    MIN(s->subclusters_per_cluster - sc_index - 1,
+                        clz32(alloc_bitmap)) << s->subcluster_bits;
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
+            }
+            break;
+        case QCOW2_SUBCLUSTER_ZERO_PLAIN:
+        case QCOW2_SUBCLUSTER_UNALLOCATED_PLAIN:
+<<<<<<< HEAD
+            cow_start_from = sc_index << s->subcluster_bits;
+            break;
+        default:
+            g_assert_not_reached();
+        }
+    } else {
+        switch (type) {
+        case QCOW2_SUBCLUSTER_NORMAL:
+            cow_start_from = cow_start_to;
+            break;
+        case QCOW2_SUBCLUSTER_ZERO_ALLOC:
+        case QCOW2_SUBCLUSTER_UNALLOCATED_ALLOC:
+            cow_start_from = sc_index << s->subcluster_bits;
+=======
+            cow_end_to = ROUND_UP(cow_end_from, s->subcluster_size);
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
+            break;
+        default:
+            g_assert_not_reached();
+        }
+<<<<<<< HEAD
+    }
+
+    /* Get the L2 entry of the last cluster */
+    l2_index += nb_clusters - 1;
+    l2_entry = get_l2_entry(s, l2_slice, l2_index);
+    l2_bitmap = get_l2_bitmap(s, l2_slice, l2_index);
+    sc_index = offset_to_sc_index(s, guest_offset + bytes - 1);
+    type = qcow2_get_subcluster_type(bs, l2_entry, l2_bitmap, sc_index);
 
     if (!keep_old) {
         switch (type) {
@@ -1268,6 +1335,8 @@ static int calculate_l2_meta(BlockDriverState *bs, uint64_t host_cluster_offset,
         default:
             g_assert_not_reached();
         }
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     } else {
         switch (type) {
         case QCOW2_SUBCLUSTER_NORMAL:
@@ -2230,6 +2299,12 @@ static int expand_zero_clusters_in_l1(BlockDriverState *bs, uint64_t *l1_table,
             } else {
                 /* load inactive L2 tables from disk */
                 ret = bdrv_pread(bs->file, slice_offset, l2_slice, slice_size2);
+<<<<<<< HEAD
+            }
+            if (ret < 0) {
+                goto fail;
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
             }
             if (ret < 0) {
                 goto fail;
@@ -2241,6 +2316,15 @@ static int expand_zero_clusters_in_l1(BlockDriverState *bs, uint64_t *l1_table,
                 QCow2ClusterType cluster_type =
                     qcow2_get_cluster_type(bs, l2_entry);
 
+<<<<<<< HEAD
+            for (j = 0; j < s->l2_slice_size; j++) {
+                uint64_t l2_entry = get_l2_entry(s, l2_slice, j);
+                int64_t offset = l2_entry & L2E_OFFSET_MASK;
+                QCow2ClusterType cluster_type =
+                    qcow2_get_cluster_type(bs, l2_entry);
+
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
                 if (cluster_type != QCOW2_CLUSTER_ZERO_PLAIN &&
                     cluster_type != QCOW2_CLUSTER_ZERO_ALLOC) {
                     continue;
@@ -2310,6 +2394,7 @@ static int expand_zero_clusters_in_l1(BlockDriverState *bs, uint64_t *l1_table,
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
             ret = bdrv_pwrite_zeroes(bs->file->bs, offset, s->cluster_size, 0);
 =======
             ret = bdrv_pwrite_zeroes(bs->file, offset, s->cluster_size, 0);
@@ -2319,6 +2404,8 @@ static int expand_zero_clusters_in_l1(BlockDriverState *bs, uint64_t *l1_table,
                     qcow2_free_clusters(bs, offset, s->cluster_size,
                                         QCOW2_DISCARD_ALWAYS);
 =======
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
                 ret = bdrv_pwrite_zeroes(s->data_file, offset,
                                          s->cluster_size, 0);
                 if (ret < 0) {
@@ -2327,7 +2414,10 @@ static int expand_zero_clusters_in_l1(BlockDriverState *bs, uint64_t *l1_table,
                                             QCOW2_DISCARD_ALWAYS);
                     }
                     goto fail;
+<<<<<<< HEAD
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
                 }
 
                 if (l2_refcount == 1) {

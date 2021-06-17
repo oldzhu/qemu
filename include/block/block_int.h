@@ -347,6 +347,7 @@ struct BlockDriver {
      * clamped to bdrv_getlength() and aligned to request_alignment,
      * as well as non-NULL pnum, map, and file; in turn, the driver
      * must return an error or set pnum to an aligned non-zero value.
+<<<<<<< HEAD
      */
     int coroutine_fn (*bdrv_co_block_status)(BlockDriverState *bs,
         bool want_zero, int64_t offset, int64_t bytes, int64_t *pnum,
@@ -359,6 +360,20 @@ struct BlockDriver {
      * One example usage is to avoid waiting for an nbd target node reconnect
      * timeout during job-cancel with force=true.
      */
+=======
+     */
+    int coroutine_fn (*bdrv_co_block_status)(BlockDriverState *bs,
+        bool want_zero, int64_t offset, int64_t bytes, int64_t *pnum,
+        int64_t *map, BlockDriverState **file);
+
+    /*
+     * This informs the driver that we are no longer interested in the result
+     * of in-flight requests, so don't waste the time if possible.
+     *
+     * One example usage is to avoid waiting for an nbd target node reconnect
+     * timeout during job-cancel with force=true.
+     */
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     void (*bdrv_cancel_in_flight)(BlockDriverState *bs);
 
     /*

@@ -17,6 +17,11 @@
 #include "qemu/option.h"
 #include "sysemu/tpm.h"
 #include "qapi/error.h"
+<<<<<<< HEAD
+=======
+
+#ifdef CONFIG_TPM
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
 #define TYPE_TPM_BACKEND "tpm-backend"
 OBJECT_DECLARE_TYPE(TPMBackend, TPMBackendClass,
@@ -208,5 +213,10 @@ void tpm_backend_finish_sync(TPMBackend *s);
 TPMInfo *tpm_backend_query_tpm(TPMBackend *s);
 
 TPMBackend *qemu_find_tpm_be(const char *id);
+<<<<<<< HEAD
+=======
 
-#endif
+#endif /* CONFIG_TPM */
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
+
+#endif /* TPM_BACKEND_H */

@@ -38,7 +38,10 @@ stub_ss.add(files('runstate-check.c'))
 stub_ss.add(files('sysbus.c'))
 stub_ss.add(files('target-get-monitor-def.c'))
 stub_ss.add(files('target-monitor-defs.c'))
+<<<<<<< HEAD
 stub_ss.add(files('tpm.c'))
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 stub_ss.add(files('trace-control.c'))
 stub_ss.add(files('uuid.c'))
 stub_ss.add(files('vmgenid.c'))

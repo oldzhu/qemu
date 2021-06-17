@@ -14,6 +14,7 @@ typedef enum {
     ACPI_NVDIMM_HOTPLUG_STATUS = 16,
     ACPI_VMGENID_CHANGE_STATUS = 32,
     ACPI_POWER_DOWN_STATUS = 64,
+<<<<<<< HEAD
 } AcpiEventStatusBits;
 
 /* These values are part of guest ABI, and can not be changed */
@@ -21,6 +22,8 @@ typedef enum {
     ACPI_PCI_HOTPLUG_STATUS = 2,
     ACPI_CPU_HOTPLUG_STATUS = 4,
     ACPI_MEMORY_HOTPLUG_STATUS = 8,
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 } AcpiEventStatusBits;
 
 #define TYPE_ACPI_DEVICE_IF "acpi-device-interface"

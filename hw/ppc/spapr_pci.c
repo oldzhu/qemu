@@ -1207,6 +1207,7 @@ static uint32_t drc_id_from_devfn(SpaprPhbState *phb,
 
 static SpaprDrc *drc_from_devfn(SpaprPhbState *phb,
                                 uint8_t chassis, int32_t devfn)
+<<<<<<< HEAD
 {
     return spapr_drc_by_id(TYPE_SPAPR_DRC_PCI,
                            drc_id_from_devfn(phb, chassis, devfn));
@@ -1344,6 +1345,145 @@ static int spapr_dt_pci_bus(SpaprPhbState *sphb, PCIBus *bus,
 
 char *spapr_pci_fw_dev_name(PCIDevice *dev)
 {
+=======
+{
+    return spapr_drc_by_id(TYPE_SPAPR_DRC_PCI,
+                           drc_id_from_devfn(phb, chassis, devfn));
+}
+
+static uint8_t chassis_from_bus(PCIBus *bus)
+{
+    if (pci_bus_is_root(bus)) {
+        return 0;
+    } else {
+        PCIDevice *bridge = pci_bridge_get_device(bus);
+
+        return object_property_get_uint(OBJECT(bridge), "chassis_nr",
+                                        &error_abort);
+    }
+}
+
+static SpaprDrc *drc_from_dev(SpaprPhbState *phb, PCIDevice *dev)
+{
+    uint8_t chassis = chassis_from_bus(pci_get_bus(dev));
+
+    return drc_from_devfn(phb, chassis, dev->devfn);
+}
+
+static void add_drcs(SpaprPhbState *phb, PCIBus *bus)
+{
+    Object *owner;
+    int i;
+    uint8_t chassis;
+
+    if (!phb->dr_enabled) {
+        return;
+    }
+
+    chassis = chassis_from_bus(bus);
+
+    if (pci_bus_is_root(bus)) {
+        owner = OBJECT(phb);
+    } else {
+        owner = OBJECT(pci_bridge_get_device(bus));
+    }
+
+    for (i = 0; i < PCI_SLOT_MAX * PCI_FUNC_MAX; i++) {
+        spapr_dr_connector_new(owner, TYPE_SPAPR_DRC_PCI,
+                               drc_id_from_devfn(phb, chassis, i));
+    }
+}
+
+static void remove_drcs(SpaprPhbState *phb, PCIBus *bus)
+{
+    int i;
+    uint8_t chassis;
+
+    if (!phb->dr_enabled) {
+        return;
+    }
+
+    chassis = chassis_from_bus(bus);
+
+    for (i = PCI_SLOT_MAX * PCI_FUNC_MAX - 1; i >= 0; i--) {
+        SpaprDrc *drc = drc_from_devfn(phb, chassis, i);
+
+        if (drc) {
+            object_unparent(OBJECT(drc));
+        }
+    }
+}
+
+typedef struct PciWalkFdt {
+    void *fdt;
+    int offset;
+    SpaprPhbState *sphb;
+    int err;
+} PciWalkFdt;
+
+static int spapr_dt_pci_device(SpaprPhbState *sphb, PCIDevice *dev,
+                               void *fdt, int parent_offset);
+
+static void spapr_dt_pci_device_cb(PCIBus *bus, PCIDevice *pdev,
+                                   void *opaque)
+{
+    PciWalkFdt *p = opaque;
+    int err;
+
+    if (p->err) {
+        /* Something's already broken, don't keep going */
+        return;
+    }
+
+    err = spapr_dt_pci_device(p->sphb, pdev, p->fdt, p->offset);
+    if (err < 0) {
+        p->err = err;
+    }
+}
+
+/* Augment PCI device node with bridge specific information */
+static int spapr_dt_pci_bus(SpaprPhbState *sphb, PCIBus *bus,
+                               void *fdt, int offset)
+{
+    Object *owner;
+    PciWalkFdt cbinfo = {
+        .fdt = fdt,
+        .offset = offset,
+        .sphb = sphb,
+        .err = 0,
+    };
+    int ret;
+
+    _FDT(fdt_setprop_cell(fdt, offset, "#address-cells",
+                          RESOURCE_CELLS_ADDRESS));
+    _FDT(fdt_setprop_cell(fdt, offset, "#size-cells",
+                          RESOURCE_CELLS_SIZE));
+
+    assert(bus);
+    pci_for_each_device_reverse(bus, pci_bus_num(bus),
+                                spapr_dt_pci_device_cb, &cbinfo);
+    if (cbinfo.err) {
+        return cbinfo.err;
+    }
+
+    if (pci_bus_is_root(bus)) {
+        owner = OBJECT(sphb);
+    } else {
+        owner = OBJECT(pci_bridge_get_device(bus));
+    }
+
+    ret = spapr_dt_drc(fdt, offset, owner,
+                       SPAPR_DR_CONNECTOR_TYPE_PCI);
+    if (ret) {
+        return ret;
+    }
+
+    return offset;
+}
+
+char *spapr_pci_fw_dev_name(PCIDevice *dev)
+{
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     const gchar *basename;
     int slot = PCI_SLOT(dev->devfn);
     int func = PCI_FUNC(dev->devfn);
@@ -1499,6 +1639,7 @@ static int check_chassis_nr(Object *obj, void *opaque)
         object_property_get_uint(opaque, "chassis_nr", &error_abort);
     int chassis_nr =
         object_property_get_uint(obj, "chassis_nr", NULL);
+<<<<<<< HEAD
 
     if (!object_dynamic_cast(obj, TYPE_PCI_BRIDGE)) {
         return 0;
@@ -1514,10 +1655,28 @@ static int check_chassis_nr(Object *obj, void *opaque)
         return 0;
     }
 
+=======
+
+    if (!object_dynamic_cast(obj, TYPE_PCI_BRIDGE)) {
+        return 0;
+    }
+
+    /* Skip unsupported bridge types */
+    if (!chassis_nr) {
+        return 0;
+    }
+
+    /* Skip self */
+    if (obj == opaque) {
+        return 0;
+    }
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     return chassis_nr == new_chassis_nr;
 }
 
 static bool bridge_has_valid_chassis_nr(Object *bridge, Error **errp)
+<<<<<<< HEAD
 {
     int chassis_nr =
         object_property_get_uint(bridge, "chassis_nr", NULL);
@@ -1546,6 +1705,36 @@ static bool bridge_has_valid_chassis_nr(Object *bridge, Error **errp)
 static void spapr_pci_pre_plug(HotplugHandler *plug_handler,
                                DeviceState *plugged_dev, Error **errp)
 {
+=======
+{
+    int chassis_nr =
+        object_property_get_uint(bridge, "chassis_nr", NULL);
+
+    /*
+     * slotid_cap_init() already ensures that "chassis_nr" isn't null for
+     * standard PCI bridges, so this really tells if "chassis_nr" is present
+     * or not.
+     */
+    if (!chassis_nr) {
+        error_setg(errp, "PCI Bridge lacks a \"chassis_nr\" property");
+        error_append_hint(errp, "Try -device pci-bridge instead.\n");
+        return false;
+    }
+
+    /* We want unique values for "chassis_nr" */
+    if (object_child_foreach_recursive(object_get_root(), check_chassis_nr,
+                                       bridge)) {
+        error_setg(errp, "Bridge chassis %d already in use", chassis_nr);
+        return false;
+    }
+
+    return true;
+}
+
+static void spapr_pci_pre_plug(HotplugHandler *plug_handler,
+                               DeviceState *plugged_dev, Error **errp)
+{
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     SpaprPhbState *phb = SPAPR_PCI_HOST_BRIDGE(DEVICE(plug_handler));
     PCIDevice *pdev = PCI_DEVICE(plugged_dev);
     PCIDeviceClass *pc = PCI_DEVICE_GET_CLASS(plugged_dev);
@@ -1603,6 +1792,7 @@ static void spapr_pci_plug(HotplugHandler *plug_handler,
      */
     if (!phb->dr_enabled) {
         return;
+<<<<<<< HEAD
     }
 
     g_assert(drc);
@@ -1611,6 +1801,16 @@ static void spapr_pci_plug(HotplugHandler *plug_handler,
         spapr_pci_bridge_plug(phb, PCI_BRIDGE(plugged_dev));
     }
 
+=======
+    }
+
+    g_assert(drc);
+
+    if (pc->is_bridge) {
+        spapr_pci_bridge_plug(phb, PCI_BRIDGE(plugged_dev));
+    }
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     /* spapr_pci_pre_plug() already checked the DRC is attachable */
     spapr_drc_attach(drc, DEVICE(pdev));
 
@@ -1848,6 +2048,7 @@ static void spapr_phb_realize(DeviceState *dev, Error **errp)
     PCIBus *bus;
     uint64_t msi_window_size = 4096;
 <<<<<<< HEAD
+<<<<<<< HEAD
     sPAPRTCETable *tcet;
 <<<<<<< HEAD
 =======
@@ -1858,6 +2059,10 @@ static void spapr_phb_realize(DeviceState *dev, Error **errp)
     SpaprTceTable *tcet;
     const unsigned windows_supported = spapr_phb_windows_supported(sphb);
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+    SpaprTceTable *tcet;
+    const unsigned windows_supported = spapr_phb_windows_supported(sphb);
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
     if (!spapr) {
         error_setg(errp, TYPE_SPAPR_PCI_HOST_BRIDGE " needs a pseries machine");
@@ -2034,6 +2239,7 @@ static void spapr_phb_realize(DeviceState *dev, Error **errp)
     add_drcs(sphb, phb->bus);
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     tcet = spapr_tce_new_table(DEVICE(sphb), sphb->dma_liobn);
     if (!tcet) {
         error_setg(errp, "Unable to create TCE table for %s",
@@ -2045,6 +2251,8 @@ static void spapr_phb_realize(DeviceState *dev, Error **errp)
                                         spapr_tce_get_iommu(tcet), 0);
 
 =======
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     /* DMA setup */
     for (i = 0; i < windows_supported; ++i) {
         tcet = spapr_tce_new_table(DEVICE(sphb), sphb->dma_liobn[i]);
@@ -2058,16 +2266,22 @@ static void spapr_phb_realize(DeviceState *dev, Error **errp)
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> upstream/master
     sphb->msi = g_hash_table_new_full(g_int_hash, g_int_equal, g_free, g_free);
 =======
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     sphb->msi = g_hash_table_new_full(g_int_hash, g_int_equal, g_free,
                                       spapr_phb_destroy_msi);
     return;
 
 unrealize:
     spapr_phb_unrealize(dev);
+<<<<<<< HEAD
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 }
 
 static int spapr_phb_children_reset(Object *child, void *opaque)

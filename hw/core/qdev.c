@@ -98,6 +98,7 @@ static void bus_add_child(BusState *bus, DeviceState *child)
                              (Object **)&kid->child,
                              NULL, /* read-only property */
                              0);
+<<<<<<< HEAD
 }
 
 static bool bus_check_address(BusState *bus, DeviceState *child, Error **errp)
@@ -117,6 +118,27 @@ bool qdev_set_parent_bus(DeviceState *dev, BusState *bus, Error **errp)
         return false;
     }
 
+=======
+}
+
+static bool bus_check_address(BusState *bus, DeviceState *child, Error **errp)
+{
+    BusClass *bc = BUS_GET_CLASS(bus);
+    return !bc->check_address || bc->check_address(bus, child, errp);
+}
+
+bool qdev_set_parent_bus(DeviceState *dev, BusState *bus, Error **errp)
+{
+    BusState *old_parent_bus = dev->parent_bus;
+    DeviceClass *dc = DEVICE_GET_CLASS(dev);
+
+    assert(dc->bus_type && object_dynamic_cast(OBJECT(bus), dc->bus_type));
+
+    if (!bus_check_address(bus, dev, errp)) {
+        return false;
+    }
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     if (old_parent_bus) {
         trace_qdev_update_parent_bus(dev, object_get_typename(OBJECT(dev)),
             old_parent_bus, object_get_typename(OBJECT(old_parent_bus)),
@@ -245,6 +267,7 @@ HotplugHandler *qdev_get_machine_hotplug_handler(DeviceState *dev)
         mc = MACHINE_GET_CLASS(machine);
         if (mc->get_hotplug_handler) {
             return mc->get_hotplug_handler(machine, dev);
+<<<<<<< HEAD
         }
     }
 
@@ -265,6 +288,28 @@ bool qdev_hotplug_allowed(DeviceState *dev, Error **errp)
         }
     }
 
+=======
+        }
+    }
+
+    return NULL;
+}
+
+bool qdev_hotplug_allowed(DeviceState *dev, Error **errp)
+{
+    MachineState *machine;
+    MachineClass *mc;
+    Object *m_obj = qdev_get_machine();
+
+    if (object_dynamic_cast(m_obj, TYPE_MACHINE)) {
+        machine = MACHINE(m_obj);
+        mc = MACHINE_GET_CLASS(machine);
+        if (mc->hotplug_allowed) {
+            return mc->hotplug_allowed(machine, dev, errp);
+        }
+    }
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     return true;
 }
 
@@ -699,6 +744,7 @@ char *qdev_get_dev_path(DeviceState *dev)
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 /**
  * Legacy property handling
  */
@@ -864,6 +910,8 @@ GSList *qdev_build_hotpluggable_device_list(Object *peripheral)
 
 =======
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 static bool device_get_realized(Object *obj, Error **errp)
 {
     DeviceState *dev = DEVICE(obj);
@@ -1256,6 +1304,7 @@ static void device_class_init(ObjectClass *class, void *data)
                                    device_get_hotplugged, NULL);
     object_class_property_add_link(class, "parent_bus", TYPE_BUS,
                                    offsetof(DeviceState, parent_bus), NULL, 0);
+<<<<<<< HEAD
 }
 
 void device_class_set_parent_reset(DeviceClass *dc,
@@ -1266,6 +1315,18 @@ void device_class_set_parent_reset(DeviceClass *dc,
     dc->reset = dev_reset;
 }
 
+=======
+}
+
+void device_class_set_parent_reset(DeviceClass *dc,
+                                   DeviceReset dev_reset,
+                                   DeviceReset *parent_reset)
+{
+    *parent_reset = dc->reset;
+    dc->reset = dev_reset;
+}
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 void device_class_set_parent_realize(DeviceClass *dc,
                                      DeviceRealize dev_realize,
                                      DeviceRealize *parent_realize)

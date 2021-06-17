@@ -1619,12 +1619,16 @@ static void pc_machine_initfn(Object *obj)
     PCMachineState *pcms = PC_MACHINE(obj);
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 
     pcms->max_ram_below_4g = 0; /* use default */
     pcms->smm = ON_OFF_AUTO_AUTO;
 =======
 #ifdef CONFIG_VMPORT
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+#ifdef CONFIG_VMPORT
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     pcms->vmport = ON_OFF_AUTO_AUTO;
 #else
     pcms->vmport = ON_OFF_AUTO_OFF;

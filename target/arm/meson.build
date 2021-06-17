@@ -6,6 +6,10 @@ gen = [
   decodetree.process('vfp.decode', extra_args: '--decode=disas_vfp'),
   decodetree.process('vfp-uncond.decode', extra_args: '--decode=disas_vfp_uncond'),
   decodetree.process('m-nocp.decode', extra_args: '--decode=disas_m_nocp'),
+<<<<<<< HEAD
+=======
+  decodetree.process('mve.decode', extra_args: '--decode=disas_mve'),
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
   decodetree.process('a32.decode', extra_args: '--static-decode=disas_a32'),
   decodetree.process('a32-uncond.decode', extra_args: '--static-decode=disas_a32_uncond'),
   decodetree.process('t32.decode', extra_args: '--static-decode=disas_t32'),
@@ -27,6 +31,10 @@ arm_ss.add(files(
   'tlb_helper.c',
   'translate.c',
   'translate-m-nocp.c',
+<<<<<<< HEAD
+=======
+  'translate-mve.c',
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
   'translate-neon.c',
   'translate-vfp.c',
   'vec_helper.c',

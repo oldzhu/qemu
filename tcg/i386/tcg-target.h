@@ -31,9 +31,17 @@
 #ifdef __x86_64__
 # define TCG_TARGET_REG_BITS  64
 # define TCG_TARGET_NB_REGS   32
+<<<<<<< HEAD
 #else
 # define TCG_TARGET_REG_BITS  32
 # define TCG_TARGET_NB_REGS   24
+=======
+# define MAX_CODE_GEN_BUFFER_SIZE  (2 * GiB)
+#else
+# define TCG_TARGET_REG_BITS  32
+# define TCG_TARGET_NB_REGS   24
+# define MAX_CODE_GEN_BUFFER_SIZE  UINT32_MAX
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 #endif
 
 typedef enum {

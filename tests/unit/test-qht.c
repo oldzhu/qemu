@@ -6,9 +6,12 @@
  */
 #include "qemu/osdep.h"
 <<<<<<< HEAD
+<<<<<<< HEAD
 #include <glib.h>
 =======
 >>>>>>> upstream/master
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 #include "qemu/qht.h"
 #include "qemu/rcu.h"
 

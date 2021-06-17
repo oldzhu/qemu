@@ -3205,6 +3205,7 @@ static void spapr_set_resize_hpt(Object *obj, const char *value, Error **errp)
 }
 
 static char *spapr_get_ic_mode(Object *obj, Error **errp)
+<<<<<<< HEAD
 {
     SpaprMachineState *spapr = SPAPR_MACHINE(obj);
 
@@ -3260,6 +3261,63 @@ static char *spapr_get_host_serial(Object *obj, Error **errp)
 {
     SpaprMachineState *spapr = SPAPR_MACHINE(obj);
 
+=======
+{
+    SpaprMachineState *spapr = SPAPR_MACHINE(obj);
+
+    if (spapr->irq == &spapr_irq_xics_legacy) {
+        return g_strdup("legacy");
+    } else if (spapr->irq == &spapr_irq_xics) {
+        return g_strdup("xics");
+    } else if (spapr->irq == &spapr_irq_xive) {
+        return g_strdup("xive");
+    } else if (spapr->irq == &spapr_irq_dual) {
+        return g_strdup("dual");
+    }
+    g_assert_not_reached();
+}
+
+static void spapr_set_ic_mode(Object *obj, const char *value, Error **errp)
+{
+    SpaprMachineState *spapr = SPAPR_MACHINE(obj);
+
+    if (SPAPR_MACHINE_GET_CLASS(spapr)->legacy_irq_allocation) {
+        error_setg(errp, "This machine only uses the legacy XICS backend, don't pass ic-mode");
+        return;
+    }
+
+    /* The legacy IRQ backend can not be set */
+    if (strcmp(value, "xics") == 0) {
+        spapr->irq = &spapr_irq_xics;
+    } else if (strcmp(value, "xive") == 0) {
+        spapr->irq = &spapr_irq_xive;
+    } else if (strcmp(value, "dual") == 0) {
+        spapr->irq = &spapr_irq_dual;
+    } else {
+        error_setg(errp, "Bad value for \"ic-mode\" property");
+    }
+}
+
+static char *spapr_get_host_model(Object *obj, Error **errp)
+{
+    SpaprMachineState *spapr = SPAPR_MACHINE(obj);
+
+    return g_strdup(spapr->host_model);
+}
+
+static void spapr_set_host_model(Object *obj, const char *value, Error **errp)
+{
+    SpaprMachineState *spapr = SPAPR_MACHINE(obj);
+
+    g_free(spapr->host_model);
+    spapr->host_model = g_strdup(value);
+}
+
+static char *spapr_get_host_serial(Object *obj, Error **errp)
+{
+    SpaprMachineState *spapr = SPAPR_MACHINE(obj);
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     return g_strdup(spapr->host_serial);
 }
 
@@ -3488,6 +3546,7 @@ static void spapr_memory_pre_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
 
     if (!smc->dr_lmb_enabled) {
         error_setg(errp, "Memory hotplug not supported for this machine");
+<<<<<<< HEAD
         return;
     }
 
@@ -3497,6 +3556,17 @@ static void spapr_memory_pre_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
         return;
     }
 
+=======
+        return;
+    }
+
+    size = memory_device_get_region_size(MEMORY_DEVICE(dimm), &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
+        return;
+    }
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     if (is_nvdimm) {
         if (!spapr_nvdimm_validate(hotplug_dev, NVDIMM(dev), size, errp)) {
             return;
@@ -3809,6 +3879,7 @@ void spapr_core_unplug_request(HotplugHandler *hotplug_dev, DeviceState *dev,
 
 int spapr_core_dt_populate(SpaprDrc *drc, SpaprMachineState *spapr,
                            void *fdt, int *fdt_start_offset, Error **errp)
+<<<<<<< HEAD
 {
     SpaprCpuCore *core = SPAPR_CPU_CORE(drc->dev);
     CPUState *cs = CPU(core->threads[0]);
@@ -3842,6 +3913,41 @@ int spapr_core_dt_populate(SpaprDrc *drc, SpaprMachineState *spapr,
 
 static void spapr_core_plug(HotplugHandler *hotplug_dev, DeviceState *dev)
 {
+=======
+{
+    SpaprCpuCore *core = SPAPR_CPU_CORE(drc->dev);
+    CPUState *cs = CPU(core->threads[0]);
+    PowerPCCPU *cpu = POWERPC_CPU(cs);
+    DeviceClass *dc = DEVICE_GET_CLASS(cs);
+    int id = spapr_get_vcpu_id(cpu);
+    g_autofree char *nodename = NULL;
+    int offset;
+
+    nodename = g_strdup_printf("%s@%x", dc->fw_name, id);
+    offset = fdt_add_subnode(fdt, 0, nodename);
+
+    spapr_dt_cpu(cs, fdt, offset, spapr);
+
+    /*
+     * spapr_dt_cpu() does not fill the 'name' property in the
+     * CPU node. The function is called during boot process, before
+     * and after CAS, and overwriting the 'name' property written
+     * by SLOF is not allowed.
+     *
+     * Write it manually after spapr_dt_cpu(). This makes the hotplug
+     * CPUs more compatible with the coldplugged ones, which have
+     * the 'name' property. Linux Kernel also relies on this
+     * property to identify CPU nodes.
+     */
+    _FDT((fdt_setprop_string(fdt, offset, "name", nodename)));
+
+    *fdt_start_offset = offset;
+    return 0;
+}
+
+static void spapr_core_plug(HotplugHandler *hotplug_dev, DeviceState *dev)
+{
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     SpaprMachineState *spapr = SPAPR_MACHINE(OBJECT(hotplug_dev));
     MachineClass *mc = MACHINE_GET_CLASS(spapr);
     SpaprMachineClass *smc = SPAPR_MACHINE_CLASS(mc);
@@ -3918,6 +4024,7 @@ static void spapr_core_pre_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
     if (dev->hotplugged && !mc->has_hotpluggable_cpus) {
         error_setg(errp, "CPU hotplug not supported for this machine");
         return;
+<<<<<<< HEAD
     }
 
     if (strcmp(base_core_type, type)) {
@@ -3972,6 +4079,62 @@ int spapr_phb_dt_populate(SpaprDrc *drc, SpaprMachineState *spapr,
         return -1;
     }
 
+=======
+    }
+
+    if (strcmp(base_core_type, type)) {
+        error_setg(errp, "CPU core type should be %s", base_core_type);
+        return;
+    }
+
+    if (cc->core_id % smp_threads) {
+        error_setg(errp, "invalid core id %d", cc->core_id);
+        return;
+    }
+
+    /*
+     * In general we should have homogeneous threads-per-core, but old
+     * (pre hotplug support) machine types allow the last core to have
+     * reduced threads as a compatibility hack for when we allowed
+     * total vcpus not a multiple of threads-per-core.
+     */
+    if (mc->has_hotpluggable_cpus && (cc->nr_threads != smp_threads)) {
+        error_setg(errp, "invalid nr-threads %d, must be %d", cc->nr_threads,
+                   smp_threads);
+        return;
+    }
+
+    core_slot = spapr_find_cpu_slot(MACHINE(hotplug_dev), cc->core_id, &index);
+    if (!core_slot) {
+        error_setg(errp, "core id %d out of range", cc->core_id);
+        return;
+    }
+
+    if (core_slot->cpu) {
+        error_setg(errp, "core %d already populated", cc->core_id);
+        return;
+    }
+
+    numa_cpu_pre_plug(core_slot, dev, errp);
+}
+
+int spapr_phb_dt_populate(SpaprDrc *drc, SpaprMachineState *spapr,
+                          void *fdt, int *fdt_start_offset, Error **errp)
+{
+    SpaprPhbState *sphb = SPAPR_PCI_HOST_BRIDGE(drc->dev);
+    int intc_phandle;
+
+    intc_phandle = spapr_irq_get_phandle(spapr, spapr->fdt_blob, errp);
+    if (intc_phandle <= 0) {
+        return -1;
+    }
+
+    if (spapr_dt_phb(spapr, sphb, intc_phandle, fdt, fdt_start_offset)) {
+        error_setg(errp, "unable to create FDT node for PHB %d", sphb->index);
+        return -1;
+    }
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     /* generally SLOF creates these, for hotplug it's up to QEMU */
     _FDT(fdt_setprop_string(fdt, *fdt_start_offset, "name", "pci"));
 
@@ -4071,9 +4234,44 @@ static void spapr_phb_unplug_request(HotplugHandler *hotplug_dev,
         error_setg(errp,
                    "PCI Host Bridge unplug already in progress for device %s",
                    dev->id);
+<<<<<<< HEAD
     }
 }
 
+static
+bool spapr_tpm_proxy_pre_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
+                              Error **errp)
+{
+    SpaprMachineState *spapr = SPAPR_MACHINE(OBJECT(hotplug_dev));
+
+    if (spapr->tpm_proxy != NULL) {
+        error_setg(errp, "Only one TPM proxy can be specified for this machine");
+        return false;
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
+    }
+}
+
+<<<<<<< HEAD
+    return true;
+}
+
+static void spapr_tpm_proxy_plug(HotplugHandler *hotplug_dev, DeviceState *dev)
+{
+    SpaprMachineState *spapr = SPAPR_MACHINE(OBJECT(hotplug_dev));
+    SpaprTpmProxy *tpm_proxy = SPAPR_TPM_PROXY(dev);
+
+    /* Already checked in spapr_tpm_proxy_pre_plug() */
+    g_assert(spapr->tpm_proxy == NULL);
+
+    spapr->tpm_proxy = tpm_proxy;
+}
+
+static void spapr_tpm_proxy_unplug(HotplugHandler *hotplug_dev, DeviceState *dev)
+{
+    SpaprMachineState *spapr = SPAPR_MACHINE(OBJECT(hotplug_dev));
+
+=======
 static
 bool spapr_tpm_proxy_pre_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
                               Error **errp)
@@ -4103,6 +4301,7 @@ static void spapr_tpm_proxy_unplug(HotplugHandler *hotplug_dev, DeviceState *dev
 {
     SpaprMachineState *spapr = SPAPR_MACHINE(OBJECT(hotplug_dev));
 
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     qdev_unrealize(dev);
     object_unparent(OBJECT(dev));
     spapr->tpm_proxy = NULL;
@@ -4392,6 +4591,7 @@ static int spapr_match_nvt(XiveFabric *xfb, uint8_t format,
     }
 
     return count;
+<<<<<<< HEAD
 }
 
 int spapr_get_vcpu_id(PowerPCCPU *cpu)
@@ -4405,6 +4605,21 @@ bool spapr_set_vcpu_id(PowerPCCPU *cpu, int cpu_index, Error **errp)
     MachineState *ms = MACHINE(spapr);
     int vcpu_id;
 
+=======
+}
+
+int spapr_get_vcpu_id(PowerPCCPU *cpu)
+{
+    return cpu->vcpu_id;
+}
+
+bool spapr_set_vcpu_id(PowerPCCPU *cpu, int cpu_index, Error **errp)
+{
+    SpaprMachineState *spapr = SPAPR_MACHINE(qdev_get_machine());
+    MachineState *ms = MACHINE(spapr);
+    int vcpu_id;
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     vcpu_id = spapr_vcpu_id(spapr, cpu_index);
 
     if (kvm_enabled() && !kvm_vcpu_id_is_valid(vcpu_id)) {
@@ -4990,16 +5205,22 @@ DEFINE_SPAPR_MACHINE(2_7, "2.7", false);
 static void spapr_machine_2_6_class_options(MachineClass *mc)
 {
 <<<<<<< HEAD
+<<<<<<< HEAD
     sPAPRMachineClass *smc = SPAPR_MACHINE_CLASS(mc);
 
     spapr_machine_2_7_class_options(mc);
     smc->dr_cpu_enabled = false;
 =======
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     static GlobalProperty compat[] = {
         { TYPE_SPAPR_PCI_HOST_BRIDGE, "ddw", "off" },
     };
 
+<<<<<<< HEAD
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     spapr_machine_2_7_class_options(mc);
     mc->has_hotpluggable_cpus = false;
     compat_props_add(mc->compat_props, hw_compat_2_6, hw_compat_2_6_len);

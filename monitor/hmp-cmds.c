@@ -901,6 +901,10 @@ void hmp_info_pci(Monitor *mon, const QDict *qdict)
 
 void hmp_info_tpm(Monitor *mon, const QDict *qdict)
 {
+<<<<<<< HEAD
+=======
+#ifdef CONFIG_TPM
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     TPMInfoList *info_list, *info;
     Error *err = NULL;
     unsigned int c = 0;
@@ -946,6 +950,12 @@ void hmp_info_tpm(Monitor *mon, const QDict *qdict)
         c++;
     }
     qapi_free_TPMInfoList(info_list);
+<<<<<<< HEAD
+=======
+#else
+    monitor_printf(mon, "TPM device not supported\n");
+#endif /* CONFIG_TPM */
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 }
 
 void hmp_quit(Monitor *mon, const QDict *qdict)
@@ -2198,6 +2208,7 @@ void hmp_info_ramblock(Monitor *mon, const QDict *qdict)
     ram_block_dump(mon);
 }
 
+<<<<<<< HEAD
 <<<<<<< HEAD:hmp.c
 void hmp_hotpluggable_cpus(Monitor *mon, const QDict *qdict)
 {
@@ -2257,6 +2268,8 @@ void hmp_hotpluggable_cpus(Monitor *mon, const QDict *qdict)
 
 =======
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2:monitor/hmp-cmds.c
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 void hmp_info_vm_generation_id(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;

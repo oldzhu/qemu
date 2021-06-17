@@ -378,6 +378,10 @@ config NPCM7XX
     select SERIAL
     select SSI
     select UNIMP
+<<<<<<< HEAD
+=======
+    select PCA954X
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
 
 config FSL_IMX25
     bool
@@ -413,6 +417,10 @@ config ASPEED_SOC
     select PCA9552
     select SERIAL
     select SMBUS_EEPROM
+<<<<<<< HEAD
+=======
+    select PCA954X
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     select SSI
     select SSI_M25P80
     select TMP105

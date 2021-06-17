@@ -620,12 +620,16 @@ static void piix4_acpi_system_hot_add_init(MemoryRegion *parent,
     object_property_add_bool(OBJECT(s), "cpu-hotplug-legacy",
                              piix4_get_cpu_hotplug_legacy,
 <<<<<<< HEAD
+<<<<<<< HEAD
                              piix4_set_cpu_hotplug_legacy,
                              NULL);
 >>>>>>> upstream/master
 =======
                              piix4_set_cpu_hotplug_legacy);
 >>>>>>> 894fc4fd670aaf04a67dc7507739f914ff4bacf2
+=======
+                             piix4_set_cpu_hotplug_legacy);
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     legacy_acpi_cpu_hotplug_init(parent, OBJECT(s), &s->gpe_cpu,
                                  PIIX4_CPU_HOTPLUG_IO_BASE);
 

@@ -2176,6 +2176,7 @@ static int iscsi_get_info(BlockDriverState *bs, BlockDriverInfo *bdi)
     bdi->cluster_size = iscsilun->cluster_size;
     return 0;
 }
+<<<<<<< HEAD
 
 static void coroutine_fn iscsi_co_invalidate_cache(BlockDriverState *bs,
                                                    Error **errp)
@@ -2212,6 +2213,44 @@ static struct scsi_task *iscsi_xcopy_task(int param_len)
     task->xfer_dir   = SCSI_XFER_WRITE;
     task->expxferlen = param_len;
 
+=======
+
+static void coroutine_fn iscsi_co_invalidate_cache(BlockDriverState *bs,
+                                                   Error **errp)
+{
+    IscsiLun *iscsilun = bs->opaque;
+    iscsi_allocmap_invalidate(iscsilun);
+}
+
+static int coroutine_fn iscsi_co_copy_range_from(BlockDriverState *bs,
+                                                 BdrvChild *src,
+                                                 uint64_t src_offset,
+                                                 BdrvChild *dst,
+                                                 uint64_t dst_offset,
+                                                 uint64_t bytes,
+                                                 BdrvRequestFlags read_flags,
+                                                 BdrvRequestFlags write_flags)
+{
+    return bdrv_co_copy_range_to(src, src_offset, dst, dst_offset, bytes,
+                                 read_flags, write_flags);
+}
+
+static struct scsi_task *iscsi_xcopy_task(int param_len)
+{
+    struct scsi_task *task;
+
+    task = g_new0(struct scsi_task, 1);
+
+    task->cdb[0]     = EXTENDED_COPY;
+    task->cdb[10]    = (param_len >> 24) & 0xFF;
+    task->cdb[11]    = (param_len >> 16) & 0xFF;
+    task->cdb[12]    = (param_len >> 8) & 0xFF;
+    task->cdb[13]    = param_len & 0xFF;
+    task->cdb_size   = 16;
+    task->xfer_dir   = SCSI_XFER_WRITE;
+    task->expxferlen = param_len;
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     return task;
 }
 

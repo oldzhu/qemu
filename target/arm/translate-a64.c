@@ -8291,7 +8291,10 @@ static void disas_simd_mod_imm(DisasContext *s, uint32_t insn)
         }
         break;
     default:
+<<<<<<< HEAD
         fprintf(stderr, "%s: cmode_3_1: %x\n", __func__, cmode_3_1);
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
         g_assert_not_reached();
     }
 
@@ -11990,13 +11993,69 @@ static void disas_simd_three_reg_same(DisasContext *s, uint32_t insn)
  */
 static void disas_simd_three_reg_same_fp16(DisasContext *s, uint32_t insn)
 {
+<<<<<<< HEAD
     int opcode, fpopcode;
     int is_q, u, a, rm, rn, rd;
     int datasize, elements;
+=======
+    int opcode = extract32(insn, 11, 3);
+    int u = extract32(insn, 29, 1);
+    int a = extract32(insn, 23, 1);
+    int is_q = extract32(insn, 30, 1);
+    int rm = extract32(insn, 16, 5);
+    int rn = extract32(insn, 5, 5);
+    int rd = extract32(insn, 0, 5);
+    /*
+     * For these floating point ops, the U, a and opcode bits
+     * together indicate the operation.
+     */
+    int fpopcode = opcode | (a << 3) | (u << 4);
+    int datasize = is_q ? 128 : 64;
+    int elements = datasize / 16;
+    bool pairwise;
+    TCGv_ptr fpst;
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     int pass;
     TCGv_ptr fpst;
     bool pairwise = false;
 
+<<<<<<< HEAD
+=======
+    switch (fpopcode) {
+    case 0x0: /* FMAXNM */
+    case 0x1: /* FMLA */
+    case 0x2: /* FADD */
+    case 0x3: /* FMULX */
+    case 0x4: /* FCMEQ */
+    case 0x6: /* FMAX */
+    case 0x7: /* FRECPS */
+    case 0x8: /* FMINNM */
+    case 0x9: /* FMLS */
+    case 0xa: /* FSUB */
+    case 0xe: /* FMIN */
+    case 0xf: /* FRSQRTS */
+    case 0x13: /* FMUL */
+    case 0x14: /* FCMGE */
+    case 0x15: /* FACGE */
+    case 0x17: /* FDIV */
+    case 0x1a: /* FABD */
+    case 0x1c: /* FCMGT */
+    case 0x1d: /* FACGT */
+        pairwise = false;
+        break;
+    case 0x10: /* FMAXNMP */
+    case 0x12: /* FADDP */
+    case 0x16: /* FMAXP */
+    case 0x18: /* FMINNMP */
+    case 0x1e: /* FMINP */
+        pairwise = true;
+        break;
+    default:
+        unallocated_encoding(s);
+        return;
+    }
+
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     if (!dc_isar_feature(aa64_fp16, s)) {
         unallocated_encoding(s);
         return;
@@ -12006,6 +12065,7 @@ static void disas_simd_three_reg_same_fp16(DisasContext *s, uint32_t insn)
         return;
     }
 
+<<<<<<< HEAD
     /* For these floating point ops, the U, a and opcode bits
      * together indicate the operation.
      */
@@ -12031,6 +12091,8 @@ static void disas_simd_three_reg_same_fp16(DisasContext *s, uint32_t insn)
         break;
     }
 
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     fpst = fpstatus_ptr(FPST_FPCR_F16);
 
     if (pairwise) {
@@ -12153,8 +12215,11 @@ static void disas_simd_three_reg_same_fp16(DisasContext *s, uint32_t insn)
                 gen_helper_advsimd_acgt_f16(tcg_res, tcg_op1, tcg_op2, fpst);
                 break;
             default:
+<<<<<<< HEAD
                 fprintf(stderr, "%s: insn 0x%04x, fpop 0x%2x @ 0x%" PRIx64 "\n",
                         __func__, insn, fpopcode, s->pc_curr);
+=======
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
                 g_assert_not_reached();
             }
 
@@ -12879,6 +12944,7 @@ static void disas_simd_two_reg_misc(DisasContext *s, uint32_t insn)
         gen_helper_set_rmode(tcg_rmode, tcg_rmode, tcg_fpstatus);
     } else {
         tcg_rmode = NULL;
+<<<<<<< HEAD
     }
 
     switch (opcode) {
@@ -12886,6 +12952,64 @@ static void disas_simd_two_reg_misc(DisasContext *s, uint32_t insn)
         if (u && size == 0) { /* NOT */
             gen_gvec_fn2(s, is_q, rd, rn, tcg_gen_gvec_not, 0);
             return;
+=======
+    }
+
+    switch (opcode) {
+    case 0x5:
+        if (u && size == 0) { /* NOT */
+            gen_gvec_fn2(s, is_q, rd, rn, tcg_gen_gvec_not, 0);
+            return;
+        }
+        break;
+    case 0x8: /* CMGT, CMGE */
+        if (u) {
+            gen_gvec_fn2(s, is_q, rd, rn, gen_gvec_cge0, size);
+        } else {
+            gen_gvec_fn2(s, is_q, rd, rn, gen_gvec_cgt0, size);
+        }
+        return;
+    case 0x9: /* CMEQ, CMLE */
+        if (u) {
+            gen_gvec_fn2(s, is_q, rd, rn, gen_gvec_cle0, size);
+        } else {
+            gen_gvec_fn2(s, is_q, rd, rn, gen_gvec_ceq0, size);
+        }
+        return;
+    case 0xa: /* CMLT */
+        gen_gvec_fn2(s, is_q, rd, rn, gen_gvec_clt0, size);
+        return;
+    case 0xb:
+        if (u) { /* ABS, NEG */
+            gen_gvec_fn2(s, is_q, rd, rn, tcg_gen_gvec_neg, size);
+        } else {
+            gen_gvec_fn2(s, is_q, rd, rn, tcg_gen_gvec_abs, size);
+        }
+        return;
+    }
+
+    if (size == 3) {
+        /* All 64-bit element operations can be shared with scalar 2misc */
+        int pass;
+
+        /* Coverity claims (size == 3 && !is_q) has been eliminated
+         * from all paths leading to here.
+         */
+        tcg_debug_assert(is_q);
+        for (pass = 0; pass < 2; pass++) {
+            TCGv_i64 tcg_op = tcg_temp_new_i64();
+            TCGv_i64 tcg_res = tcg_temp_new_i64();
+
+            read_vec_element(s, tcg_op, rn, pass, MO_64);
+
+            handle_2misc_64(s, opcode, u, tcg_res, tcg_op,
+                            tcg_rmode, tcg_fpstatus);
+
+            write_vec_element(s, tcg_res, rd, pass, MO_64);
+
+            tcg_temp_free_i64(tcg_res);
+            tcg_temp_free_i64(tcg_op);
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
         }
         break;
     case 0x8: /* CMGT, CMGE */
@@ -13234,8 +13358,13 @@ static void disas_simd_two_reg_misc_fp16(DisasContext *s, uint32_t insn)
     case 0x7f: /* FSQRT (vector) */
         break;
     default:
+<<<<<<< HEAD
         fprintf(stderr, "%s: insn 0x%04x fpop 0x%2x\n", __func__, insn, fpop);
         g_assert_not_reached();
+=======
+        unallocated_encoding(s);
+        return;
+>>>>>>> 38848ce565849e5b867a5e08022b3c755039c11a
     }
 
 
