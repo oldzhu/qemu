@@ -11,6 +11,12 @@
 # When adding new dependencies, pin the very oldest non-yanked version
 # on PyPI that allows the test suite to pass.
 
+# For some reason, the presence of packaging==14.0 below requires us to
+# also pin setuptools to version 70 or below. Otherwise, the
+# installation of the QEMU package itself fails, failing to find
+# setuptools.
+setuptools<=70
+
 # Dependencies for qapidoc/qapi_domain et al
 sphinx==3.4.3
 
