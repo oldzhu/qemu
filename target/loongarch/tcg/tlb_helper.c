@@ -598,10 +598,11 @@ void helper_ldpte(CPULoongArchState *env, target_ulong base, target_ulong odd,
                   uint32_t mem_idx)
 {
     CPUState *cs = env_cpu(env);
-    target_ulong phys, tmp0, ptindex, ptoffset0, ptoffset1, ps, badv;
+    target_ulong phys, tmp0, ptindex, ptoffset0, ptoffset1, badv;
     uint64_t ptbase = FIELD_EX64(env->CSR_PWCL, CSR_PWCL, PTBASE);
     uint64_t ptwidth = FIELD_EX64(env->CSR_PWCL, CSR_PWCL, PTWIDTH);
     uint64_t dir_base, dir_width;
+    uint8_t  ps;
 
     /*
      * The parameter "base" has only two types,
@@ -640,7 +641,7 @@ void helper_ldpte(CPULoongArchState *env, target_ulong base, target_ulong odd,
         }
 
         if (!check_ps(env, ps)) {
-            qemu_log_mask(LOG_GUEST_ERROR, "Illegal huge pagesize %ld\n", ps);
+            qemu_log_mask(LOG_GUEST_ERROR, "Illegal huge pagesize %d\n", ps);
             return;
         }
     } else {
