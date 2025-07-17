@@ -854,6 +854,9 @@ static void qemu_spice_init(void)
     if (qemu_opt_get_bool(opts, "gl", 0)) {
         if ((port != 0) || (tls_port != 0)) {
 #if SPICE_SERVER_VERSION >= 0x000f03 /* release 0.15.3 */
+            const char *video_codec = NULL;
+            g_autofree char *enc_codec = NULL;
+
             spice_remote_client = 1;
 
             video_codec = qemu_opt_get(opts, "video-codec");

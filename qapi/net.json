@@ -3,7 +3,9 @@
 #
 
 ##
-# = Net devices
+# ***********
+# Net devices
+# ***********
 ##
 
 { 'include': 'sockets.json' }
@@ -567,25 +569,34 @@
 #     (default: 0).
 #
 # @inhibit: Don't load a default XDP program, use one already loaded
-#     to the interface (default: false).  Requires @sock-fds.
+#     to the interface (default: false).  Requires @sock-fds or @map-path.
 #
 # @sock-fds: A colon (:) separated list of file descriptors for
 #     already open but not bound AF_XDP sockets in the queue order.
 #     One fd per queue.  These descriptors should already be added
-#     into XDP socket map for corresponding queues.  Requires
-#     @inhibit.
+#     into XDP socket map for corresponding queues.  @sock-fds and
+#     @map-path are mutually exclusive.  Requires @inhibit.
+#
+# @map-path: The path to a pinned xsk map to push file descriptors
+#     for bound AF_XDP sockets into.  @map-path and @sock-fds are
+#     mutually exclusive.  Requires @inhibit.  (Since 10.1)
+#
+# @map-start-index: Use @map-path to insert xsk sockets starting from
+#     this index number (default: 0).  Requires @map-path.  (Since 10.1)
 #
 # Since: 8.2
 ##
 { 'struct': 'NetdevAFXDPOptions',
   'data': {
-    'ifname':       'str',
-    '*mode':        'AFXDPMode',
-    '*force-copy':  'bool',
-    '*queues':      'int',
-    '*start-queue': 'int',
-    '*inhibit':     'bool',
-    '*sock-fds':    'str' },
+    'ifname':           'str',
+    '*mode':            'AFXDPMode',
+    '*force-copy':      'bool',
+    '*queues':          'int',
+    '*start-queue':     'int',
+    '*inhibit':         'bool',
+    '*sock-fds':        'str',
+    '*map-path':        'str',
+    '*map-start-index': 'int32' },
   'if': 'CONFIG_AF_XDP' }
 
 ##
@@ -768,7 +779,7 @@
 #     this to zero disables this function.  This member is mutually
 #     exclusive with @reconnect.  (default: 0) (Since: 9.2)
 #
-# Only SocketAddress types 'unix', 'inet' and 'fd' are supported.
+# Only `SocketAddress` types 'unix', 'inet' and 'fd' are supported.
 #
 # Features:
 #
@@ -793,7 +804,7 @@
 #
 # @local: local address
 #
-# Only SocketAddress types 'unix', 'inet' and 'fd' are supported.
+# Only `SocketAddress` types 'unix', 'inet' and 'fd' are supported.
 #
 # If remote address is present and it's a multicast address, local
 # address is optional.  Otherwise local address is required and remote
@@ -963,7 +974,7 @@
 #
 # @name: net client name
 #
-# Returns: list of @RxFilterInfo for all NICs (or for the given NIC).
+# Returns: list of info for all NICs (or for the given NIC).
 #
 # Errors:
 #     - if the given @name doesn't exist
@@ -1008,7 +1019,7 @@
 ##
 # @NIC_RX_FILTER_CHANGED:
 #
-# Emitted once until the 'query-rx-filter' command is executed, the
+# Emitted once until the `query-rx-filter` command is executed, the
 # first event will always be emitted
 #
 # @name: net client name
