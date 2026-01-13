@@ -2368,6 +2368,7 @@ F: include/system/iommufd.h
 F: backends/host_iommu_device.c
 F: include/system/host_iommu_device.h
 F: include/qemu/chardev_open.h
+F: include/hw/core/iommu.h
 F: util/chardev_open.c
 F: docs/devel/vfio-iommufd.rst
 
@@ -3285,6 +3286,8 @@ F: include/system/ioport.h
 F: include/exec/memop.h
 F: include/system/ram_addr.h
 F: include/system/memory.h
+F: include/system/memory_cached.h
+F: include/system/memory_ldst*
 F: include/system/physmem.h
 F: include/system/ramblock.h
 F: include/system/memory_mapping.h
@@ -3958,6 +3961,7 @@ R: Clément Mathieu--Drif <clement.mathieu--drif@eviden.com>
 S: Supported
 F: hw/i386/intel_iommu.c
 F: hw/i386/intel_iommu_internal.h
+F: hw/i386/intel_iommu_accel.*
 F: include/hw/i386/intel_iommu.h
 F: tests/functional/x86_64/test_intel_iommu.py
 F: tests/qtest/intel-iommu-test.c
