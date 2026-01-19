@@ -4,6 +4,8 @@
 Command-line wrapper for the tracetool machinery.
 """
 
+from __future__ import annotations
+
 __author__     = "Lluís Vilanova <vilanova@ac.upc.edu>"
 __copyright__  = "Copyright 2012-2014, Lluís Vilanova <vilanova@ac.upc.edu>"
 __license__    = "GPL version 2 or (at your option) any later version"
@@ -12,17 +14,17 @@ __maintainer__ = "Stefan Hajnoczi"
 __email__      = "stefanha@redhat.com"
 
 
-import sys
 import getopt
+import sys
+from typing import NoReturn
 
-from tracetool import error_write, out, out_open
 import tracetool.backend
 import tracetool.format
-
+from tracetool import error_write, out, out_open
 
 _SCRIPT = ""
 
-def error_opt(msg = None):
+def error_opt(msg: str | None = None) -> NoReturn:
     if msg is not None:
         error_write("Error: " + msg + "\n")
 
@@ -57,7 +59,7 @@ Options:
     else:
         sys.exit(1)
 
-def main(args):
+def main(args: list[str]) -> None:
     global _SCRIPT
     _SCRIPT = args[0]
 

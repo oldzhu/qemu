@@ -4,6 +4,8 @@
 Simple built-in backend.
 """
 
+from __future__ import annotations
+
 __author__     = "Lluís Vilanova <vilanova@ac.upc.edu>"
 __copyright__  = "Copyright 2012-2017, Lluís Vilanova <vilanova@ac.upc.edu>"
 __license__    = "GPL version 2 or (at your option) any later version"
@@ -12,14 +14,13 @@ __maintainer__ = "Stefan Hajnoczi"
 __email__      = "stefanha@redhat.com"
 
 
-from tracetool import out
-
+from tracetool import Event, out
 
 PUBLIC = True
 CHECK_TRACE_EVENT_GET_STATE = True
 
 
-def is_string(arg):
+def is_string(arg: str) -> bool:
     strtype = ('const char*', 'char*', 'const char *', 'char *')
     arg_strip = arg.lstrip()
     if arg_strip.startswith(strtype) and arg_strip.count('*') == 1:
@@ -28,7 +29,7 @@ def is_string(arg):
         return False
 
 
-def generate_h_begin(events, group):
+def generate_h_begin(events: list[Event], group: str) -> None:
     for event in events:
         out('void _simple_%(api)s(%(args)s);',
             api=event.api(),
@@ -36,25 +37,25 @@ def generate_h_begin(events, group):
     out('')
 
 
-def generate_h(event, group):
+def generate_h(event: Event, group: str) -> None:
     out('        _simple_%(api)s(%(args)s);',
         api=event.api(),
         args=", ".join(event.args.names()))
 
 
-def generate_h_backend_dstate(event, group):
+def generate_h_backend_dstate(event: Event, group: str) -> None:
     out('    trace_event_get_state_dynamic_by_id(%(event_id)s) || \\',
         event_id="TRACE_" + event.name.upper())
 
 
-def generate_c_begin(events, group):
+def generate_c_begin(events: list[Event], group: str) -> None:
     out('#include "qemu/osdep.h"',
         '#include "trace/control.h"',
         '#include "trace/simple.h"',
         '')
 
 
-def generate_c(event, group):
+def generate_c(event: Event, group: str) -> None:
     out('void _simple_%(api)s(%(args)s)',
         '{',
         '    TraceBufferRecord rec;',
@@ -99,7 +100,7 @@ def generate_c(event, group):
         '}',
         '')
 
-def generate_rs(event, group):
+def generate_rs(event: Event, group: str) -> None:
     out('        extern "C" { fn _simple_%(api)s(%(rust_args)s); }',
         '        unsafe { _simple_%(api)s(%(args)s); }',
         api=event.api(),
