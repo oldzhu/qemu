@@ -4,6 +4,8 @@
 trace/generated-ust.c
 """
 
+from __future__ import annotations
+
 __author__     = "Mohamad Gebai <mohamad.gebai@polymtl.ca>"
 __copyright__  = "Copyright 2012, Mohamad Gebai <mohamad.gebai@polymtl.ca>"
 __license__    = "GPL version 2 or (at your option) any later version"
@@ -12,10 +14,11 @@ __maintainer__ = "Stefan Hajnoczi"
 __email__      = "stefanha@redhat.com"
 
 
-from tracetool import out
+from tracetool import Event, out
+from tracetool.backend import Wrapper
 
 
-def generate(events, backend, group):
+def generate(events: list[Event], backend: Wrapper, group: str) -> None:
     events = [e for e in events
               if "disabled" not in e.properties]
 
