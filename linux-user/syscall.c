@@ -12933,7 +12933,9 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
         case 70: arg3 = MADV_DODUMP;        break;
         case 71: arg3 = MADV_WIPEONFORK;    break;
         case 72: arg3 = MADV_KEEPONFORK;    break;
+        #ifdef MADV_COLLAPSE
         case 73: arg3 = MADV_COLLAPSE;      break;
+        #endif
         }
 #endif /* TARGET_HPPA */
         return target_madvise(arg1, arg2, arg3);
