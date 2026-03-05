@@ -269,7 +269,9 @@ void qio_channel_tls_handshake(QIOChannelTLS *ioc,
                         func, opaque, destroy);
 
     trace_qio_channel_tls_handshake_start(ioc);
-    qio_channel_tls_handshake_task(ioc, task, context);
+    if (qio_channel_tls_handshake_task(ioc, task, context)) {
+        qio_task_free(task);
+    }
 }
 
 static gboolean qio_channel_tls_bye_io(QIOChannel *ioc, GIOCondition condition,
