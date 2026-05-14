@@ -2619,7 +2619,7 @@ static bool sd_generic_write_data(SDState *sd, const void *buf, size_t *len)
 {
     size_t to_write = MIN(sd->data_size - sd->data_offset, *len);
 
-    memcpy(sd->data, buf, to_write);
+    memcpy(&sd->data[sd->data_offset], buf, to_write);
     sd->data_offset += to_write;
     *len = to_write;
 
@@ -2635,7 +2635,7 @@ static bool sd_generic_read_data(SDState *sd, void *buf, size_t *len)
 {
     size_t to_read = MIN(sd->data_size - sd->data_offset, *len);
 
-    memcpy(buf, sd->data, to_read);
+    memcpy(buf, &sd->data[sd->data_offset], to_read);
     sd->data_offset += to_read;
     *len = to_read;
 
