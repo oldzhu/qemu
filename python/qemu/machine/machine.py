@@ -308,7 +308,7 @@ class QEMUMachine:
                          'chardev=mon,mode=control'])
         return args
 
-    def _console_args(self, interactive=False) -> List[str]:
+    def _console_args(self, interactive: bool = False) -> List[str]:
         args: List[str] = []
         # redirect pre_console_index serials to null
         for _ in range(self._console_index):
@@ -491,7 +491,10 @@ class QEMUMachine:
         # Log a simplified, developer-runnable command:
         # Exclude harness-managed infrastructure args (harness_args)
         # and wrapper.
-        debug_cmd = [self._binary] + self._console_args(interactive=True) + self._base_args + self._args
+        debug_cmd = [self._binary]
+        debug_cmd.extend(self._console_args(interactive=True))
+        debug_cmd.extend(self._base_args)
+        debug_cmd.extend(self._args)
         LOG.debug('Developer-runnable command: %r', ' '.join(debug_cmd))
 
         # Cleaning up of this subprocess is guaranteed by _do_shutdown.
