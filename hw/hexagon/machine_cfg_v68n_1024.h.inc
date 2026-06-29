@@ -62,4 +62,3 @@ static const struct hexagon_machine_config v68n_1024 = {
         .axi3_lowaddr = 0x1f1f1f1f,
     },
 };
-
