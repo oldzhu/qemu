@@ -2350,6 +2350,7 @@ T: git https://github.com/bonzini/qemu.git scsi-next
 SSI
 M: Alistair Francis <alistair@alistair23.me>
 S: Maintained
+F: docs/devel/ssi.rst
 F: hw/ssi/*
 F: hw/block/m25p80*
 F: include/hw/ssi/ssi.h
@@ -2940,7 +2941,7 @@ F: include/hw/isa/vt82c686.h
 
 Firmware configuration (fw_cfg)
 R: Gerd Hoffmann <kraxel@redhat.com>
-S: Orphaned
+S: Orphan
 F: docs/specs/fw_cfg.rst
 F: hw/nvram/fw_cfg*.c
 F: stubs/fw_cfg.c
