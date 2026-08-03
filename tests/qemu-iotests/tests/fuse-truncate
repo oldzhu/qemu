@@ -40,12 +40,12 @@ def check_sudo_support():
     try:
         subprocess.run(['sudo', '-n', 'losetup', '--version'],
                        capture_output=True, check=True)
-    except:
+    except OSError, subprocess.CalledProcessError:
         return False
     try:
         subprocess.run(['sudo', '-n', 'chmod', '--version'],
                        capture_output=True, check=True)
-    except:
+    except OSError, subprocess.CalledProcessError:
         return False
     return True
 
