@@ -2299,7 +2299,7 @@ static void tgen_ctzi(TCGContext *s, TCGType type,
         tgen_clzctzi(s, type, a0, a1, a2, Irr_sf_CTZ);
     } else {
         tcg_out_insn(s, rr_sf, RBIT, type, TCG_REG_TMP0, a1);
-        tgen_clzctzi(s, type, a0, a1, a2, Irr_sf_CLZ);
+        tgen_clzctzi(s, type, a0, TCG_REG_TMP0, a2, Irr_sf_CLZ);
     }
 }
 

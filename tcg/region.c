@@ -369,7 +369,7 @@ static bool tcg_region_alloc__locked(TCGContext *s)
 
 /*
  * Request a new region once the one in use has filled up.
- * Returns true on error.
+ * Returns true on success.
  */
 bool tcg_region_alloc(TCGContext *s)
 {
