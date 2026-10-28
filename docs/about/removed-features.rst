@@ -578,6 +578,11 @@ kernel since 2001. None of the board types QEMU supports need
 Keeping 32-bit host support alive was a substantial burden for the
 QEMU project.  Thus QEMU dropped all support for all 32-bit host systems.
 
+``debug-threads`` option for ``-name`` (removed in 11.2)
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+Thread naming is unconditionally enabled for all platforms where it
+is supported.
 
 User-mode emulator command line arguments
 -----------------------------------------
@@ -779,8 +784,8 @@ values could be assigned to integer device properties or vice versa.
 Removed with no replacement, as it reported only a limited set of
 threads (for example, it only reported source side of multifd threads,
 without reporting any destination threads, or non-multifd source
-threads).  For debugging purpose, please use ``-name
-$VM,debug-threads=on`` instead.
+threads).  For debugging purpose, thread names are unconditionally
+enabled where supported.
 
 ``migrate`` argument ``detach`` (removed in 11.0)
 ''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -1037,6 +1042,13 @@ The 'any' CPU type was introduced back in 2018 and was around since the
 initial RISC-V QEMU port. Its usage was always been unclear: users don't know
 what to expect from a CPU called 'any', and in fact the CPU does not do anything
 special that isn't already done by the default CPUs rv32/rv64.
+
+RISC-V CPU properties which start with capital 'Z' (removed in 10.1)
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+All RISC-V CPU properties which start with capital 'Z' have been removed.
+They were wrongly added with capital 'Z' in the past. CPU properties
+with lower-case names are used instead.
 
 Power8E and Power8NVL CPUs (removed in 11.1)
 ''''''''''''''''''''''''''''''''''''''''''''
