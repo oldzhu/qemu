@@ -4,8 +4,6 @@
 Machinery for generating tracing-related intermediate files.
 """
 
-from __future__ import annotations
-
 __author__     = "Lluís Vilanova <vilanova@ac.upc.edu>"
 __copyright__  = "Copyright 2012-2017, Lluís Vilanova <vilanova@ac.upc.edu>"
 __license__    = "GPL version 2 or (at your option) any later version"
@@ -17,19 +15,17 @@ __email__      = "stefanha@redhat.com"
 import os
 import re
 import sys
-from io import TextIOWrapper
 from pathlib import PurePath
-from typing import Any, Iterator, Sequence
 
 import tracetool.backend
 import tracetool.format
 
 
-def error_write(*lines: str) -> None:
+def error_write(*lines):
     """Write a set of error lines."""
     sys.stderr.writelines("\n".join(lines) + "\n")
 
-def error(*lines: str) -> None:
+def error(*lines):
     """Write a set of error lines and exit."""
     error_write(*lines)
     sys.exit(1)
@@ -50,8 +46,8 @@ PRI_SIZE_MAP = {
     'MAX': 'j',
 }
 
-def expand_format_string(c_fmt: str, prefix: str="") -> str:
-    def pri_macro_to_fmt(pri_macro: str) -> str:
+def expand_format_string(c_fmt, prefix=""):
+    def pri_macro_to_fmt(pri_macro):
         assert pri_macro.startswith("PRI")
         fmt_type = pri_macro[3]  # 'd', 'i', 'u', or 'x'
         fmt_size = pri_macro[4:]  # '8', '16', '32', '64', 'PTR', 'MAX'
@@ -82,12 +78,12 @@ out_lineno = 1
 out_filename = '<none>'
 out_fobj = sys.stdout
 
-def out_open(filename: str) -> None:
+def out_open(filename):
     global out_filename, out_fobj
     out_filename = posix_relpath(filename)
     out_fobj = open(filename, 'wt')
 
-def out(*lines: str, **kwargs: Any) -> None:
+def out(*lines, **kwargs):
     """Write a set of output lines.
 
     You can use kwargs as a shorthand for mapping variables when formatting all
@@ -179,8 +175,13 @@ RUST_VARARGS_SMALL_TYPES = {
     "bool",
 }
 
-def validate_type(name: str) -> None:
+def validate_type(name):
     bits = name.split(" ")
+
+    if "long" in bits and "int" in bits:
+        raise ValueError("Invalid use of 'int' typename in %s, "
+                         "use 'long' alone" % name)
+
     for bit in bits:
         bit = re.sub(r"\*", "", bit)
         if bit == "":
@@ -194,7 +195,7 @@ def validate_type(name: str) -> None:
                              "other complex pointer types should be "
                              "declared as 'void *'" % name)
 
-def c_type_to_rust(name: str) -> str:
+def c_type_to_rust(name):
     ptr = False
     const = False
     name = name.rstrip()
@@ -229,14 +230,14 @@ def c_type_to_rust(name: str) -> str:
 class Arguments:
     """Event arguments description."""
 
-    def __init__(self, args: Sequence[tuple[str, str] | Arguments]) -> None:
+    def __init__(self, args):
         """
         Parameters
         ----------
         args :
             List of (type, name) tuples or Arguments objects.
         """
-        self._args: list[tuple[str, str]] = []
+        self._args = []
         for arg in args:
             if isinstance(arg, Arguments):
                 self._args.extend(arg._args)
@@ -244,7 +245,7 @@ class Arguments:
                 self._args.append(arg)
 
     @staticmethod
-    def build(arg_str: str) -> Arguments:
+    def build(arg_str):
         """Build and Arguments instance from an argument string.
 
         Parameters
@@ -271,23 +272,23 @@ class Arguments:
             res.append((arg_type, identifier))
         return Arguments(res)
 
-    def __getitem__(self, index: int | slice) -> Arguments | tuple[str, str]:
+    def __getitem__(self, index):
         if isinstance(index, slice):
             return Arguments(self._args[index])
         else:
             return self._args[index]
 
-    def __iter__(self) -> Iterator[tuple[str, str]]:
+    def __iter__(self):
         """Iterate over the (type, name) pairs."""
         return iter(self._args)
 
-    def __len__(self) -> int:
+    def __len__(self):
         """Number of arguments."""
         return len(self._args)
 
-    def __str__(self) -> str:
+    def __str__(self):
         """String suitable for declaring function arguments."""
-        def onearg(t: str, n: str) -> str:
+        def onearg(t, n):
             if t[-1] == '*':
                 return "".join([t, n])
             else:
@@ -298,30 +299,30 @@ class Arguments:
         else:
             return ", ".join([ onearg(t, n) for t,n in self._args ])
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         """Evaluable string representation for this object."""
         return "Arguments(\"%s\")" % str(self)
 
-    def names(self) -> list[str]:
+    def names(self):
         """List of argument names."""
         return [ name for _, name in self._args ]
 
-    def types(self) -> list[str]:
+    def types(self):
         """List of argument types."""
         return [ type_ for type_, _ in self._args ]
 
-    def casted(self) -> list[str]:
+    def casted(self):
         """List of argument names casted to their type."""
         return ["(%s)%s" % (type_, name) for type_, name in self._args]
 
-    def rust_decl_extern(self) -> str:
+    def rust_decl_extern(self):
         """Return a Rust argument list for an extern "C" function"""
         return ", ".join((f"_{name}: {c_type_to_rust(type_)}"
                           for type_, name in self._args))
 
-    def rust_decl(self) -> str:
+    def rust_decl(self):
         """Return a Rust argument list for a tracepoint function"""
-        def decl_type(type_: str) -> str:
+        def decl_type(type_):
             if type_ == "const char *":
                 return "&std::ffi::CStr"
             return c_type_to_rust(type_)
@@ -329,18 +330,18 @@ class Arguments:
         return ", ".join((f"_{name}: {decl_type(type_)}"
                           for type_, name in self._args))
 
-    def rust_call_extern(self) -> str:
+    def rust_call_extern(self):
         """Return a Rust argument list for a call to an extern "C" function"""
-        def rust_cast(name: str, type_: str) -> str:
+        def rust_cast(name, type_):
             if type_ == "const char *":
                 return f"_{name}.as_ptr()"
             return f"_{name}"
 
         return ", ".join((rust_cast(name, type_) for type_, name in self._args))
 
-    def rust_call_varargs(self) -> str:
+    def rust_call_varargs(self):
         """Return a Rust argument list for a call to a C varargs function"""
-        def rust_cast(name: str, type_: str) -> str:
+        def rust_cast(name, type_):
             if type_ == "const char *":
                 return f"_{name}.as_ptr()"
 
@@ -361,8 +362,6 @@ class Event(object):
         The event name.
     fmt : str
         The event format string.
-    properties : set(str)
-        Properties of the event.
     args : Arguments
         The event arguments.
     lineno : int
@@ -372,23 +371,18 @@ class Event(object):
 
     """
 
-    _CRE = re.compile(r"((?P<props>[\w\s]+)\s+)?"
-                      r"(?P<name>\w+)"
+    _CRE = re.compile(r"(?P<name>\w+)"
                       r"\((?P<args>[^)]*)\)"
                       r"\s*"
                       r"(?P<fmt>\".+)?"
                       r"\s*")
 
-    _VALID_PROPS = set(["disable"])
-
-    def __init__(self, name: str, props: list[str], fmt: str, args: Arguments, lineno: int, filename: str) -> None:
+    def __init__(self, name, fmt, args, lineno, filename):
         """
         Parameters
         ----------
         name : string
             Event name.
-        props : list of str
-            Property names.
         fmt : str
             Event printing format string.
         args : Arguments
@@ -400,7 +394,6 @@ class Event(object):
 
         """
         self.name = name
-        self.properties = props
         self.fmt = fmt
         self.args = args
         self.lineno = int(lineno)
@@ -410,14 +403,9 @@ class Event(object):
             raise ValueError("Event '%s' has more than maximum permitted "
                              "argument count" % name)
 
-        unknown_props = set(self.properties) - self._VALID_PROPS
-        if len(unknown_props) > 0:
-            raise ValueError("Unknown properties: %s"
-                             % ", ".join(unknown_props))
-
 
     @staticmethod
-    def build(line_str: str, lineno: int, filename: str) -> Event:
+    def build(line_str, lineno, filename):
         """Build an Event instance from a string.
 
         Parameters
@@ -434,7 +422,6 @@ class Event(object):
         groups = m.groupdict('')
 
         name = groups["name"]
-        props = groups["props"].split()
         fmt = groups["fmt"]
         if fmt.find("%m") != -1:
             raise ValueError("Event format '%m' is forbidden, pass the error "
@@ -447,19 +434,18 @@ class Event(object):
 
         args = Arguments.build(groups["args"])
 
-        return Event(name, props, fmt, args, lineno, posix_relpath(filename))
+        return Event(name, fmt, args, lineno, posix_relpath(filename))
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         """Evaluable string representation for this object."""
-        return "Event('%s %s(%s) %s')" % (" ".join(self.properties),
-                                          self.name,
-                                          self.args,
-                                          self.fmt)
+        return "Event('%s(%s) %s')" % (self.name,
+                                       self.args,
+                                       self.fmt)
     # Star matching on PRI is dangerous as one might have multiple
     # arguments with that format, hence the non-greedy version of it.
     _FMT = re.compile(r"(%[\d\.]*\w+|%.*?PRI\S+)")
 
-    def formats(self) -> list[str]:
+    def formats(self):
         """List conversion specifiers in the argument print format string."""
         return self._FMT.findall(self.fmt)
 
@@ -470,13 +456,13 @@ class Event(object):
     QEMU_BACKEND_DSTATE      = "TRACE_%(NAME)s_BACKEND_DSTATE"
     QEMU_EVENT               = "_TRACE_%(NAME)s_EVENT"
 
-    def api(self, fmt: str|None=None) -> str:
+    def api(self, fmt=None):
         if fmt is None:
             fmt = Event.QEMU_TRACE
         return fmt % {"name": self.name, "NAME": self.name.upper()}
 
 
-def read_events(fobj: TextIOWrapper, fname: str) -> list[Event]:
+def read_events(fobj, fname):
     """Generate the output for the given (format, backends) pair.
 
     Parameters
@@ -515,7 +501,7 @@ class TracetoolError (Exception):
     pass
 
 
-def try_import(mod_name: str, attr_name: str | None=None, attr_default: Any=None) -> tuple[bool, Any]:
+def try_import(mod_name, attr_name=None, attr_default=None):
     """Try to import a module and get an attribute from it.
 
     Parameters
@@ -541,8 +527,8 @@ def try_import(mod_name: str, attr_name: str | None=None, attr_default: Any=None
         return False, None
 
 
-def generate(events: list[Event], group: str, format: str, backends: list[str],
-             binary: str|None=None, probe_prefix: str|None=None) -> None:
+def generate(events, group, format, backends,
+             binary=None, probe_prefix=None):
     """Generate the output for the given (format, backends) pair.
 
     Parameters
@@ -571,9 +557,9 @@ def generate(events: list[Event], group: str, format: str, backends: list[str],
 
     if len(backends) == 0:
         raise TracetoolError("no backends specified")
-    for backend_name in backends:
-        if not tracetool.backend.exists(backend_name):
-            raise TracetoolError("unknown backend: %s" % backend_name)
+    for backend in backends:
+        if not tracetool.backend.exists(backend):
+            raise TracetoolError("unknown backend: %s" % backend)
     backend = tracetool.backend.Wrapper(backends, format)
 
     import tracetool.backend.dtrace
@@ -582,7 +568,7 @@ def generate(events: list[Event], group: str, format: str, backends: list[str],
 
     tracetool.format.generate(events, format, backend, group)
 
-def posix_relpath(path: str, start: str|None=None) -> str:
+def posix_relpath(path, start=None):
     try:
         path = os.path.relpath(path, start)
     except ValueError:

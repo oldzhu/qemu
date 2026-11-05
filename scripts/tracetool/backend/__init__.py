@@ -26,7 +26,8 @@ PUBLIC                      If exists and is set to 'True', the backend is
                             considered "public".
 CHECK_TRACE_EVENT_GET_STATE If exists and is set to 'True', the backend-specific
                             code inside the tracepoint is emitted within an
-                            ``if trace_event_get_state()`` conditional.
+                            ``if trace_event_get_state_dynamic_by_id()``
+                            conditional.
 =========================== ====================================================
 
 
@@ -49,8 +50,6 @@ generate_<format>(event)        Generate backend- and format-specific contents
 
 """
 
-from __future__ import annotations
-
 __author__     = "Lluís Vilanova <vilanova@ac.upc.edu>"
 __copyright__  = "Copyright 2012-2014, Lluís Vilanova <vilanova@ac.upc.edu>"
 __license__    = "GPL version 2 or (at your option) any later version"
@@ -60,12 +59,11 @@ __email__      = "stefanha@redhat.com"
 
 
 import os
-from typing import Any, Iterator
 
 import tracetool
 
 
-def get_list(only_public: bool = False) -> list[tuple[str, str]]:
+def get_list(only_public = False):
     """Get a list of (name, description) pairs."""
     res = [("nop", "Tracing disabled.")]
     modnames = []
@@ -94,7 +92,7 @@ def get_list(only_public: bool = False) -> list[tuple[str, str]]:
     return res
 
 
-def exists(name: str) -> bool:
+def exists(name):
     """Return whether the given backend exists."""
     if len(name) == 0:
         return False
@@ -105,7 +103,7 @@ def exists(name: str) -> bool:
 
 
 class Wrapper:
-    def __init__(self, backends: list[str], format: str) -> None:
+    def __init__(self, backends, format):
         self._backends = [backend.replace("-", "_") for backend in backends]
         self._format = format.replace("-", "_")
         self.check_trace_event_get_state = False
@@ -116,13 +114,13 @@ class Wrapper:
             check_trace_event_get_state = getattr(backend, "CHECK_TRACE_EVENT_GET_STATE", False)
             self.check_trace_event_get_state = self.check_trace_event_get_state or check_trace_event_get_state
 
-    def backend_modules(self) -> Iterator[Any]:
+    def backend_modules(self):
         for backend in self._backends:
              module = tracetool.try_import("tracetool.backend." + backend)[1]
              if module is not None:
                  yield module
 
-    def _run_function(self, name: str, *args: Any, check_trace_event_get_state: bool | None=None, **kwargs: Any) -> None:
+    def _run_function(self, name, *args, check_trace_event_get_state=None, **kwargs):
         for backend in self.backend_modules():
             func = getattr(backend, name % self._format, None)
             if func is not None and \
@@ -130,14 +128,14 @@ class Wrapper:
                  check_trace_event_get_state == getattr(backend, 'CHECK_TRACE_EVENT_GET_STATE', False)):
                     func(*args, **kwargs)
 
-    def generate_begin(self, events: list[tracetool.Event], group: str) -> None:
+    def generate_begin(self, events, group):
         self._run_function("generate_%s_begin", events, group)
 
-    def generate(self, event: tracetool.Event, group: str, check_trace_event_get_state: bool | None=None) -> None:
+    def generate(self, event, group, check_trace_event_get_state=None):
         self._run_function("generate_%s", event, group, check_trace_event_get_state=check_trace_event_get_state)
 
-    def generate_backend_dstate(self, event: tracetool.Event, group: str) -> None:
-        self._run_function("generate_%s_backend_dstate", event, group)
+    def generate_backend_dstate(self, event, group, check_trace_event_get_state=None):
+        self._run_function("generate_%s_backend_dstate", event, group, check_trace_event_get_state=check_trace_event_get_state)
 
-    def generate_end(self, events: list[tracetool.Event], group: str) -> None:
+    def generate_end(self, events, group):
         self._run_function("generate_%s_end", events, group)

@@ -29,7 +29,7 @@ def generate(events: list[Event], backend: Wrapper, group: str) -> None:
         '',
         '#[allow(dead_code)]',
         '#[inline(always)]',
-        'fn trace_event_state_is_enabled(dstate: u16) -> bool {',
+        'fn trace_event_state_is_enabled(dstate: u8) -> bool {',
         '    (unsafe { trace_events_enabled_count }) != 0 && dstate != 0',
         '}',
         '',
@@ -42,7 +42,7 @@ def generate(events: list[Event], backend: Wrapper, group: str) -> None:
 
     for e in events:
         out('    #[allow(dead_code)]',
-            '    static mut %s: u16;' % e.api(e.QEMU_DSTATE))
+            '    static mut %s: u8;' % e.api(e.QEMU_DSTATE))
     out('}',
         '')
 
@@ -55,11 +55,10 @@ def generate(events: list[Event], backend: Wrapper, group: str) -> None:
             '{',
             api=e.api(e.QEMU_RUST_DSTATE))
 
-        if "disable" not in e.properties:
-            backend.generate_backend_dstate(e, group)
-            if backend.check_trace_event_get_state:
-                out('    trace_event_state_is_enabled(unsafe { _%(event_id)s_DSTATE}) ||',
-                    event_id = 'TRACE_' + e.name.upper())
+        backend.generate_backend_dstate(e, group)
+        if backend.check_trace_event_get_state:
+            out('    trace_event_state_is_enabled(unsafe { _%(event_id)s_DSTATE}) ||',
+                event_id = 'TRACE_' + e.name.upper())
 
         out('    false',
             '}',
@@ -71,15 +70,14 @@ def generate(events: list[Event], backend: Wrapper, group: str) -> None:
             api=e.api(e.QEMU_TRACE),
             args=e.args.rust_decl())
 
-        if "disable" not in e.properties:
-            backend.generate(e, group, check_trace_event_get_state=False)
-            if backend.check_trace_event_get_state:
-                event_id = 'TRACE_' + e.name.upper()
-                out('    if trace_event_state_is_enabled(unsafe { _%(event_id)s_DSTATE}) {',
-                    event_id = event_id,
-                    api=e.api())
-                backend.generate(e, group, check_trace_event_get_state=True)
-                out('    }')
+        backend.generate(e, group, check_trace_event_get_state=False)
+        if backend.check_trace_event_get_state:
+            event_id = 'TRACE_' + e.name.upper()
+            out('    if trace_event_state_is_enabled(unsafe { _%(event_id)s_DSTATE}) {',
+                event_id = event_id,
+                api=e.api())
+            backend.generate(e, group, check_trace_event_get_state=True)
+            out('    }')
         out('}',
             '')
 

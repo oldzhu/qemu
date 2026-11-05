@@ -92,9 +92,6 @@ def generate(events: list[Event], backend: Wrapper, group: str) -> None:
         '')
 
     for event_id, e in enumerate(events):
-        if 'disable' in e.properties:
-            continue
-
         out('probe %(probeprefix)s.log.%(name)s = %(probeprefix)s.%(name)s ?',
             '{',
             probeprefix=probeprefix(),

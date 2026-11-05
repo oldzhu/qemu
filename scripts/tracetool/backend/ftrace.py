@@ -4,8 +4,6 @@
 Ftrace built-in backend.
 """
 
-from __future__ import annotations
-
 __author__     = "Eiichi Tsukata <eiichi.tsukata.xh@hitachi.com>"
 __copyright__  = "Copyright (C) 2013 Hitachi, Ltd."
 __license__    = "GPL version 2 or (at your option) any later version"
@@ -14,18 +12,19 @@ __maintainer__ = "Stefan Hajnoczi"
 __email__      = "stefanha@redhat.com"
 
 
-from tracetool import Event, expand_format_string, out
+from tracetool import out, expand_format_string
+
 
 PUBLIC = True
 CHECK_TRACE_EVENT_GET_STATE = True
 
 
-def generate_h_begin(events: list[Event], group: str) -> None:
+def generate_h_begin(events, group):
     out('#include "trace/ftrace.h"',
         '')
 
 
-def generate_h(event: Event, group: str) -> None:
+def generate_h(event, group):
     argnames = ", ".join(event.args.names())
     if len(event.args) > 0:
         argnames = ", " + argnames
@@ -41,12 +40,8 @@ def generate_h(event: Event, group: str) -> None:
         argnames=argnames)
 
 
-def generate_h_backend_dstate(event: Event, group: str) -> None:
-    out('    trace_event_get_state_dynamic_by_id(%(event_id)s) || \\',
-        event_id="TRACE_" + event.name.upper())
-
-def generate_rs(event: Event, group: str) -> None:
-    out('        let format_string = c"%(fmt)s";',
+def generate_rs(event, group):
+    out('        let format_string = c"%(fmt)s\\n";',
         '        unsafe {bindings::ftrace_write(format_string.as_ptr() as *const c_char, %(args)s);}',
-        fmt=expand_format_string(event.fmt),
+        fmt=expand_format_string(event.fmt, event.name + " "),
         args=event.args.rust_call_varargs())

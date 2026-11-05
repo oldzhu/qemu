@@ -4,8 +4,6 @@
 trace/generated-ust-provider.h
 """
 
-from __future__ import annotations
-
 __author__     = "Mohamad Gebai <mohamad.gebai@polymtl.ca>"
 __copyright__  = "Copyright 2012, Mohamad Gebai <mohamad.gebai@polymtl.ca>"
 __license__    = "GPL version 2 or (at your option) any later version"
@@ -14,14 +12,10 @@ __maintainer__ = "Stefan Hajnoczi"
 __email__      = "stefanha@redhat.com"
 
 
-from tracetool import Event, out
-from tracetool.backend import Wrapper
+from tracetool import out
 
 
-def generate(events: list[Event], backend: Wrapper, group: str) -> None:
-    events = [e for e in events
-              if "disabled" not in e.properties]
-
+def generate(events, backend, group):
     if group == "all":
         include = "trace-ust-all.h"
     else:
@@ -75,7 +69,9 @@ def generate(events: list[Event], backend: Wrapper, group: str) -> None:
             names = e.args.names()
             fmts = e.formats()
             for t,n,f in zip(types, names, fmts):
-                if ('char *' in t) or ('char*' in t):
+                if ('char **' in t) or ('char**' in t):
+                    out('       ctf_integer_hex(' + t + ', ' + n + ', ' + n + ')')
+                elif ('char *' in t) or ('char*' in t):
                     out('       ctf_string(' + n + ', ' + n + ')')
                 elif ("%p" in f) or ("x" in f) or ("PRIx" in f):
                     out('       ctf_integer_hex('+ t + ', ' + n + ', ' + n + ')')
