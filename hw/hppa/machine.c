@@ -629,7 +629,8 @@ static void machine_HP_715_init(MachineState *machine)
     ISABus *isa_bus;
 
     /* Create CPUs and RAM.  */
-    translate = machine_HP_common_init_cpus(machine, 0xfffbe000);
+    translate = machine_HP_common_init_cpus(machine,
+                    machine->smp.cpus <= 2 ? 0xfffbe000 : 0xfffa0000);
 
     if (hppa_is_pa20(&cpu[0]->env)) {
         error_report("The HP 715/64 workstation requires a 32-bit "
@@ -716,7 +717,7 @@ static void machine_HP_B160L_init(MachineState *machine)
     PCIBus *pci_bus;
 
     /* Create CPUs and RAM.  */
-    translate = machine_HP_common_init_cpus(machine, 0xfff10000);
+    translate = machine_HP_common_init_cpus(machine, 0xfffa0000);
 
     if (hppa_is_pa20(&cpu[0]->env)) {
         error_report("The HP B160L workstation requires a 32-bit "
@@ -1020,6 +1021,14 @@ static void HP_A400_machine_init_class_init(ObjectClass *oc, const void *data)
     mc->default_ram_size = 1024 * MiB;
 }
 
+/*
+ * HP-UX 9 ioscan sends MODE SENSE page 5 to the open root disk and leaves
+ * the disk out of its listing if the page is returned.
+ */
+static GlobalProperty hp_715_scsi_quirks[] = {
+    { "scsi-hd", "quirk_mode_page_no_flexible_disk", "on" },
+};
+
 static void HP_715_machine_init_class_init(ObjectClass *oc, const void *data)
 {
     static const char * const valid_cpu_types[] = {
@@ -1041,6 +1050,8 @@ static void HP_715_machine_init_class_init(ObjectClass *oc, const void *data)
     mc->max_cpus = MIN_CONST(HPPA_MAX_CPUS, 8);
     mc->default_ram_size = 256 * MiB;
     mc->default_nic = TYPE_LASI_82596;
+    compat_props_add(mc->compat_props, hp_715_scsi_quirks,
+                     G_N_ELEMENTS(hp_715_scsi_quirks));
 }
 
 
